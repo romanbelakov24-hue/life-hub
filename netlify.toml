@@ -1,0 +1,16 @@
+# Конфигурация сборки на Netlify.
+#
+# Плагин @netlify/plugin-nextjs Netlify подключает к Next.js-проектам сам,
+# поэтому здесь он намеренно не объявлен: явное объявление фиксирует версию,
+# которую пришлось бы обновлять вручную.
+#
+# Переменные TURSO_DATABASE_URL и TURSO_AUTH_TOKEN задаются в настройках
+# сайта (Site configuration -> Environment variables), а не в этом файле —
+# он лежит в публичном репозитории.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
