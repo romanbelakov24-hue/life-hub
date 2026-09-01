@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+/* Тёмная тема переключается классом .dark на <html> (управляет next-themes). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ДИЗАЙН-ТОКЕНЫ
+   Стиль: «Ledger» — бумага и типографская краска. Тёплая палитра, тонкие
+   линии вместо теней, крупные табличные цифры, акцент-вермилион.
+   Меняешь тему проекта? Правь только два блока ниже — :root и .dark.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* поверхности */
+  --paper: #fbf9f5; /* фон страницы */
+  --surface: #ffffff; /* карточки */
+  --surface-2: #f2eee6; /* вложенные блоки, hover */
+  --surface-3: #e9e3d8; /* полосы таблицы, скелетоны */
+
+  /* текст */
+  --ink: #17140f; /* основной */
+  --ink-muted: #5f584c; /* подписи, вторичный — 7.0:1 на бумаге */
+  --ink-faint: #71695c; /* плейсхолдеры, микро-лейблы — 5.4:1 на бумаге */
+
+  /* линии */
+  --line: #e4ddd0;
+  --line-strong: #cfc5b3;
+
+  /* семантика */
+  --accent: #bf3d18; /* бренд + «трата» — 5.4:1 с белым текстом */
+  --accent-ink: #ffffff; /* текст на акценте */
+  --accent-soft: #fbe9e2; /* фон-заливка акцента */
+  --positive: #1a7a4e;
+  --positive-soft: #e3f2ea;
+  --negative: #b3271a;
+  --negative-soft: #fbe6e3;
+  --warning: #8a6000;
+  --warning-soft: #f9eed6;
+
+  /* прочее */
+  --ring: #bf3d18;
+  --shadow-color: 30 20 10;
+}
+
+.dark {
+  --paper: #0d0c0b;
+  --surface: #161412;
+  --surface-2: #1e1b18;
+  --surface-3: #262220;
+
+  --ink: #f6f2ea;
+  --ink-muted: #a49b8d;
+  --ink-faint: #8b8377; /* 4.9:1 на тёмной поверхности */
+
+  --line: #2a2621;
+  --line-strong: #3d3730;
+
+  --accent: #ff6438;
+  --accent-ink: #1a0d07;
+  --accent-soft: #2b160e;
+  --positive: #3fbf84;
+  --positive-soft: #10271d;
+  --negative: #f0664d;
+  --negative-soft: #2c1512;
+  --warning: #e0a82e;
+  --warning-soft: #2a2010;
+
+  --ring: #ff6438;
+  --shadow-color: 0 0 0;
+}
+
+/* Прокидываем токены в утилиты Tailwind: bg-surface, text-ink-muted, ... */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --font-display: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-card: 14px;
+
+  /* Дашбордная плотность: шаг сетки 4px, компактнее дефолта Tailwind */
+  --spacing: 0.25rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   БАЗОВЫЕ СТИЛИ
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Едва заметное зерно бумаги — отличает интерфейс от плоского шаблона. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .dark body::before {
+    opacity: 0.06;
+  }
+
+  /* Все цифры — моноширинные и табличные, чтобы колонки сумм не «прыгали». */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 99px;
+    border: 3px solid var(--paper);
+  }
+
+  /* Убираем стрелки у number-инпутов — суммы вводятся с клавиатуры. */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    appearance: textfield;
+  }
+
+  /* Календарная иконка date-инпута в тёмной теме должна быть светлой. */
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.6);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   КОМПОНЕНТНЫЕ КЛАССЫ-ПОМОЩНИКИ
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* Микро-заголовок секции: капслок, мелкий моно, широкий трекинг. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* Диагональная штриховка для пустых зон (пустые ячейки расписания и т.п.) */
+  .hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--line) 0px,
+      var(--line) 1px,
+      transparent 1px,
+      transparent 7px
+    );
+  }
+}
+
+@layer utilities {
+  /* Отступы под «чёлку» и жест-бар на телефоне. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .h-safe-nav {
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Уважаем системную настройку «уменьшить движение». */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

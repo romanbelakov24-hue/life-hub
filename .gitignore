@@ -1,0 +1,30 @@
+# зависимости
+/node_modules
+/.pnp
+.pnp.*
+
+# сборка next
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# локальная база данных (dev-режим без Turso)
+*.db
+*.db-journal
+*.db-wal
+local.db*
+
+# переменные окружения
+.env
+.env.local
+.env*.local
+
+# логи и системные файлы
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.pem
+.vercel
+*.tsbuildinfo
