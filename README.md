@@ -31,10 +31,13 @@ npm run dev
 
 ### Вариант Б: с Turso (нужен для доступа с телефона и деплоя)
 
-1. Установить CLI и создать базу:
+База заводится либо через веб-панель <https://app.turso.tech> (создать базу,
+скопировать URL, выпустить токен — CLI не нужен), либо через терминал.
+
+Через CLI:
 
 ```bash
-npm install -g @tursodatabase/turso-cli
+npm install -g turso
 ```
 
 ```bash
@@ -45,7 +48,7 @@ turso auth login
 turso db create life-hub
 ```
 
-2. Получить адрес базы и токен:
+Адрес базы и токен:
 
 ```bash
 turso db show life-hub --url
@@ -55,14 +58,14 @@ turso db show life-hub --url
 turso db tokens create life-hub
 ```
 
-3. Создать файл `.env.local` в корне проекта (шаблон — в `.env.example`):
+Дальше — файл `.env.local` в корне проекта (шаблон — в `.env.example`):
 
 ```
 TURSO_DATABASE_URL=libsql://life-hub-<твой-аккаунт>.turso.io
 TURSO_AUTH_TOKEN=<токен>
 ```
 
-4. Создать таблицы и запустить:
+Создать таблицы и запустить:
 
 ```bash
 npm run db:migrate
