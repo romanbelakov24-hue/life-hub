@@ -70,13 +70,18 @@ function getClient(): Promise<Client> {
   return globalForDb.__lifeHubClient;
 }
 
-/** Создаёт таблицы и базовые категории. Выполняется один раз за процесс. */
+/**
+ * Создаёт таблицы и базовые категории. Выполняется один раз за процесс.
+ *
+ * DDL и вставка категорий отправляются одним батчем: на серверлес-хостинге
+ * это выполняется при каждом холодном старте, а до базы в другом регионе
+ * каждое обращение стоит сотни миллисекунд. Один круг вместо двух заметен.
+ */
 export async function ensureSchema(): Promise<void> {
   if (!globalForDb.__lifeHubSchemaReady) {
     globalForDb.__lifeHubSchemaReady = (async () => {
       const client = await getClient();
-      await client.batch(SCHEMA_STATEMENTS, "write");
-      await client.batch(SEED_STATEMENTS, "write");
+      await client.batch([...SCHEMA_STATEMENTS, ...SEED_STATEMENTS], "write");
     })().catch((error: unknown) => {
       globalForDb.__lifeHubSchemaReady = undefined;
       throw error;
