@@ -58,7 +58,10 @@ export function ScheduleGrid({ slots, todayWeekday }: ScheduleGridProps) {
   return (
     <>
       {/* ─── Десктоп: вся неделя таблицей ─────────────────────────────────── */}
-      <div className="hidden overflow-x-auto rounded-[14px] border border-line bg-surface lg:block">
+      <div
+        data-spotlight
+        className="spotlight relative hidden overflow-x-auto rounded-[14px] border border-line bg-surface/85 backdrop-blur-xl lg:block"
+      >
         <table className="w-full border-collapse">
           <thead>
             <tr>

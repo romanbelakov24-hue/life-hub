@@ -11,7 +11,7 @@ import { QuickAddExpense } from "@/components/expenses/quick-add";
 import { StatsPanel } from "@/components/expenses/stats-panel";
 import { SummaryCards } from "@/components/expenses/summary-cards";
 import {
-  buildCategoryBreakdown,
+  buildCategoryDetails,
   buildDailyTrend,
   buildMonthlyTrend,
   buildWeeklyTrend,
@@ -93,7 +93,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     : fromIso(monthEnd).getDate();
 
   const monthTotal = sumExpenses(expenses);
-  const breakdown = buildCategoryBreakdown(expenses);
+  const breakdown = buildCategoryDetails(expenses);
   const stats = computeExpenseStats(expenses, prevMonthTotal, daysElapsed);
 
   return (
@@ -151,7 +151,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
             </div>
 
             <div className="lg:col-span-3">
-              <CategoryDonut breakdown={breakdown} total={monthTotal} index={2} />
+              <CategoryDonut breakdown={breakdown} total={monthTotal} today={today} index={2} />
             </div>
 
             <div className="lg:col-span-2">

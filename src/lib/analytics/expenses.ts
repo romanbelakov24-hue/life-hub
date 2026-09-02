@@ -13,6 +13,7 @@ import type {
   IsoDate,
   TrendPoint,
 } from "@/lib/types";
+
 import {
   daysOfMonth,
   formatDayMonthShort,
@@ -21,6 +22,11 @@ import {
   weekKeyOf,
 } from "@/lib/utils/date";
 import { roundTo } from "@/lib/utils/format";
+
+/** Категория вместе с покупками, которые в неё вошли. */
+export type CategoryWithItems = CategoryBreakdownItem & {
+  items: ExpenseWithCategory[];
+};
 
 /** Сумма трат в списке. */
 export function sumExpenses(expenses: ExpenseWithCategory[]): number {
@@ -152,6 +158,38 @@ export function computeExpenseStats(
     largestExpense,
     monthOverMonthPercent,
   };
+}
+
+/**
+ * Разбивка по категориям вместе с самими покупками — для раскрывающегося
+ * списка, где по клику видно, из чего сложилась сумма категории.
+ *
+ * Отдельная функция, а не поле в CategoryBreakdownItem: тому типу покупки не
+ * нужны, он ездит в графики, и таскать за ним весь массив трат ради двух мест
+ * было бы лишним весом на каждом рендере.
+ *
+ * Покупки внутри категории идут от новых к старым — так же, как в журнале.
+ */
+export function buildCategoryDetails(
+  expenses: ExpenseWithCategory[],
+): CategoryWithItems[] {
+  const itemsByCategory = new Map<string, ExpenseWithCategory[]>();
+
+  for (const expense of expenses) {
+    const bucket = itemsByCategory.get(expense.categoryId);
+    if (bucket) {
+      bucket.push(expense);
+    } else {
+      itemsByCategory.set(expense.categoryId, [expense]);
+    }
+  }
+
+  return buildCategoryBreakdown(expenses).map((category) => ({
+    ...category,
+    items: [...(itemsByCategory.get(category.categoryId) ?? [])].sort((a, b) =>
+      a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date),
+    ),
+  }));
 }
 
 /** Группировка трат по дате — таблица рисует их днями с подзаголовками. */

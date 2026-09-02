@@ -59,8 +59,9 @@ export function EisenhowerMatrix({ tasks, today, onEdit }: EisenhowerMatrixProps
               setDragOverQuadrant(null);
               handleDrop(quadrant.id, event.dataTransfer.getData("text/plain"));
             }}
+            data-spotlight
             className={cn(
-              "flex min-h-[180px] flex-col rounded-[14px] border bg-surface p-3.5",
+              "spotlight relative flex min-h-[180px] flex-col rounded-[14px] border bg-surface/85 p-3.5 backdrop-blur-xl",
               "transition-colors duration-200",
               isDragTarget ? "border-accent bg-accent-soft" : "border-line",
             )}

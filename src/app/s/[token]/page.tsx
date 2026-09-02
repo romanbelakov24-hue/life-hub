@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SummaryReport } from "@/components/share/summary-report";
 import {
-  buildCategoryBreakdown,
+  buildCategoryDetails,
   buildDailyTrend,
   sumExpenses,
 } from "@/lib/analytics/expenses";
@@ -95,8 +95,9 @@ export default async function SharedSummaryPage({
         year={Number(yearText)}
         total={total}
         changePercent={changePercent}
-        breakdown={buildCategoryBreakdown(expenses)}
+        categories={buildCategoryDetails(expenses)}
         daily={buildDailyTrend(expenses, today)}
+        today={today}
         transactionCount={expenses.length}
         averagePerDay={daysElapsed > 0 ? roundTo(total / daysElapsed, 2) : 0}
         daysElapsed={daysElapsed}

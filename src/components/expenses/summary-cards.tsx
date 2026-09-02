@@ -37,7 +37,9 @@ export function SummaryCards({ totals, monthTitle, isCurrentMonth }: SummaryCard
   return (
     <section className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-line bg-line sm:grid-cols-4">
       {/* Главная цифра занимает две колонки — она отвечает на основной вопрос. */}
-      <div className="col-span-2 bg-surface p-4 sm:p-5">
+      {/* Пятно на каждой ячейке отдельно: ячейки непрозрачные, и свечение,
+          лежащее под ними на уровне секции, было бы не видно. */}
+      <div data-spotlight className="spotlight relative col-span-2 bg-surface p-4 sm:p-5">
         <Metric
           label={isCurrentMonth ? "Месяц (идёт)" : "За месяц"}
           count={{ value: totals.month, format: "rub" }}
@@ -52,11 +54,11 @@ export function SummaryCards({ totals, monthTitle, isCurrentMonth }: SummaryCard
         />
       </div>
 
-      <div className="bg-surface p-4 sm:p-5">
+      <div data-spotlight className="spotlight relative bg-surface p-4 sm:p-5">
         <Metric label="Сегодня" count={{ value: totals.today, format: "rub" }} />
       </div>
 
-      <div className="bg-surface p-4 sm:p-5">
+      <div data-spotlight className="spotlight relative bg-surface p-4 sm:p-5">
         <Metric
           label="Эта неделя"
           count={{ value: totals.week, format: "rub" }}

@@ -3,13 +3,15 @@
 import { PieChart as PieChartIcon } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
+import { CategoryBreakdownList } from "@/components/expenses/category-breakdown-list";
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
-import { EmptyState, ShareBar } from "@/components/ui/misc";
+import { EmptyState } from "@/components/ui/misc";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { useChartTheme } from "@/components/charts/use-chart-theme";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
-import type { CategoryBreakdownItem } from "@/lib/types";
-import { formatNumber, formatRub, pluralize } from "@/lib/utils/format";
+import type { CategoryWithItems } from "@/lib/analytics/expenses";
+import type { IsoDate } from "@/lib/types";
+import { formatRub, pluralize } from "@/lib/utils/format";
 
 /**
  * Расходы по категориям: донат + список с долями.
@@ -20,13 +22,16 @@ import { formatNumber, formatRub, pluralize } from "@/lib/utils/format";
  */
 
 interface CategoryDonutProps {
-  breakdown: CategoryBreakdownItem[];
+  /** Категории с покупками: диаграмма берёт суммы, список — сами покупки. */
+  breakdown: CategoryWithItems[];
   total: number;
+  /** Сегодняшняя дата — для подписей дат в раскрытом списке. */
+  today: IsoDate;
   /** Порядковый номер в сетке — задаёт задержку появления. */
   index?: number;
 }
 
-export function CategoryDonut({ breakdown, total, index }: CategoryDonutProps) {
+export function CategoryDonut({ breakdown, total, today, index }: CategoryDonutProps) {
   const theme = useChartTheme();
   const reducedMotion = useReducedMotion();
 
@@ -49,7 +54,9 @@ export function CategoryDonut({ breakdown, total, index }: CategoryDonutProps) {
           description="Как только появятся траты, здесь будет разбивка по категориям."
         />
       ) : (
-        <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center">
+        // items-start, а не center: список раскрывается по клику, и
+        // центрирование заставляло бы кольцо прыгать по вертикали.
+        <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-start">
           <div className="relative mx-auto h-[190px] w-[190px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -84,28 +91,9 @@ export function CategoryDonut({ breakdown, total, index }: CategoryDonutProps) {
             </div>
           </div>
 
-          <ul className="flex min-w-0 flex-1 flex-col gap-2.5">
-            {breakdown.map((item) => (
-              <li key={item.categoryId}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: item.color }}
-                      aria-hidden
-                    />
-                    <span className="truncate text-[13px] text-ink">{item.name}</span>
-                  </span>
-
-                  <span className="tabular shrink-0 text-[13px] text-ink-muted">
-                    {formatRub(item.total, 0)}
-                    <span className="ml-1.5 text-ink-faint">{formatNumber(item.share, 1)}%</span>
-                  </span>
-                </div>
-                <ShareBar value={item.share} color={item.color} className="mt-1.5" />
-              </li>
-            ))}
-          </ul>
+          <div className="min-w-0 flex-1">
+            <CategoryBreakdownList categories={breakdown} today={today} />
+          </div>
         </div>
       )}
     </Panel>

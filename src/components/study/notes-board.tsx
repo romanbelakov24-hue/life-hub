@@ -163,8 +163,9 @@ function NoteCard({ note, onClick }: { note: Note; onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
+      data-spotlight
       className={cn(
-        "flex cursor-pointer flex-col rounded-[14px] border border-line bg-surface p-4 text-left",
+        "spotlight relative flex cursor-pointer flex-col rounded-[14px] border border-line bg-surface/85 p-4 text-left backdrop-blur-xl",
         "transition-[border-color,transform] duration-200 hover:border-line-strong hover:-translate-y-0.5",
       )}
       style={accent ? { borderTop: `3px solid ${accent}` } : undefined}

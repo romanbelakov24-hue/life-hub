@@ -1,9 +1,11 @@
 import { ArrowDownRight, ArrowUpRight, Minus, Wallet } from "lucide-react";
 
+import { CategoryBreakdownList } from "@/components/expenses/category-breakdown-list";
 import { CountUp } from "@/components/ui/count-up";
-import type { CategoryBreakdownItem, TrendPoint } from "@/lib/types";
+import type { CategoryWithItems } from "@/lib/analytics/expenses";
+import type { IsoDate, TrendPoint } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
-import { formatNumber, formatRub, formatSignedPercent, pluralize } from "@/lib/utils/format";
+import { formatRub, formatSignedPercent, pluralize } from "@/lib/utils/format";
 
 /**
  * Публичная сводка трат за месяц — то, чем можно поделиться с близкими.
@@ -25,9 +27,12 @@ interface SummaryReportProps {
   total: number;
   /** Изменение к прошлому месяцу в процентах; null — сравнивать не с чем. */
   changePercent: number | null;
-  breakdown: CategoryBreakdownItem[];
+  /** Категории вместе с покупками — список раскрывается по клику. */
+  categories: CategoryWithItems[];
   /** Траты по дням — из них строится «ритм месяца». */
   daily: TrendPoint[];
+  /** Сегодняшняя дата — для подписей «Сегодня» / «Вчера» в покупках. */
+  today: IsoDate;
   transactionCount: number;
   averagePerDay: number;
   /** Сколько дней месяца учтено. */
@@ -39,17 +44,14 @@ export function SummaryReport({
   year,
   total,
   changePercent,
-  breakdown,
+  categories,
   daily,
+  today,
   transactionCount,
   averagePerDay,
   daysElapsed,
 }: SummaryReportProps) {
   const isEmpty = total === 0;
-
-  // Топ-5 категорий: дальше идут суммы, которые на глаз уже неразличимы.
-  const topCategories = breakdown.slice(0, 5);
-  const restTotal = breakdown.slice(5).reduce((sum, item) => sum + item.total, 0);
 
   const maxDaily = Math.max(...daily.map((point) => point.total), 1);
 
@@ -143,44 +145,17 @@ export function SummaryReport({
             className="animate-rise stagger mt-10"
             style={{ "--i": 3 } as React.CSSProperties}
           >
-            <p className="eyebrow mb-4">Куда уходит</p>
+            <p className="eyebrow mb-1">Куда уходит</p>
+            <p className="mb-4 text-[12px] text-ink-faint">
+              Нажмите на категорию, чтобы увидеть покупки
+            </p>
 
-            <ul className="flex flex-col gap-4">
-              {topCategories.map((item, index) => (
-                <li key={item.categoryId}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="truncate text-[15px] text-ink">{item.name}</span>
-                    <span className="tabular shrink-0 text-[14px] text-ink-muted">
-                      {formatRub(item.total, 0)}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                      <div
-                        className="animate-grow h-full rounded-full"
-                        style={
-                          {
-                            "--w": `${item.share}%`,
-                            backgroundColor: item.color,
-                            animationDelay: `${240 + index * 90}ms`,
-                          } as React.CSSProperties
-                        }
-                      />
-                    </div>
-                    <span className="tabular w-11 shrink-0 text-right text-[12px] text-ink-faint">
-                      {formatNumber(item.share, 0)}%
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            {restTotal > 0 ? (
-              <p className="mt-4 text-[13px] text-ink-faint">
-                Остальные категории — {formatRub(restTotal, 0)}
-              </p>
-            ) : null}
+            <CategoryBreakdownList
+              categories={categories}
+              today={today}
+              limit={5}
+              variant="report"
+            />
           </section>
         </>
       )}
