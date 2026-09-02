@@ -18,6 +18,8 @@ interface MoneyCardProps {
   monthTitle: string;
   breakdown: CategoryBreakdownItem[];
   recentExpenses: ExpenseWithCategory[];
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
 export function MoneyCard({
@@ -26,11 +28,12 @@ export function MoneyCard({
   monthTitle,
   breakdown,
   recentExpenses,
+  index,
 }: MoneyCardProps) {
   const topCategories = breakdown.slice(0, 3);
 
   return (
-    <Panel className="flex flex-col">
+    <Panel className="flex flex-col" index={index}>
       <PanelHeader
         eyebrow="Финансы"
         title="Расходы"
@@ -46,8 +49,12 @@ export function MoneyCard({
       />
 
       <div className="mt-4 grid grid-cols-2 gap-4">
-        <Metric label="Сегодня" value={formatRub(todayTotal, 0)} emphasis />
-        <Metric label="За месяц" value={formatRub(monthTotal, 0)} caption={monthTitle} />
+        <Metric label="Сегодня" count={{ value: todayTotal, format: "rub" }} emphasis />
+        <Metric
+          label="За месяц"
+          count={{ value: monthTotal, format: "rub" }}
+          caption={monthTitle}
+        />
       </div>
 
       {topCategories.length > 0 ? (

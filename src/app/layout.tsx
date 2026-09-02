@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 
+import { AmbientGlow } from "@/components/layout/ambient-glow";
 import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 
@@ -72,6 +73,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body>
         <ThemeProvider>
+          {/* Свечение лежит ниже каркаса (у него z-10) и ничего не перехватывает. */}
+          <AmbientGlow />
           <AppShell>{children}</AppShell>
         </ThemeProvider>
       </body>

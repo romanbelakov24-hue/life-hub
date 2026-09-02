@@ -14,8 +14,10 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 type Size = "sm" | "md";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
+  // Свечение под акцентной кнопкой — она главный призыв к действию на экране.
   primary:
-    "bg-accent text-accent-ink hover:brightness-110 active:brightness-95 border border-transparent",
+    "bg-accent text-accent-ink border border-transparent shadow-[0_6px_24px_-8px_var(--glow-strong)] " +
+    "hover:brightness-110 hover:shadow-[0_8px_30px_-8px_var(--glow-strong)] active:brightness-95",
   secondary:
     "bg-surface-2 text-ink hover:bg-surface-3 border border-line active:bg-surface-3",
   outline:
@@ -48,7 +50,7 @@ export function Button({
     <button
       className={cn(
         "inline-flex cursor-pointer items-center justify-center rounded-[10px] font-medium",
-        "transition-[background-color,color,filter,border-color] duration-200",
+        "transition-[background-color,color,filter,border-color,box-shadow] duration-200",
         "disabled:cursor-not-allowed disabled:opacity-45",
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],

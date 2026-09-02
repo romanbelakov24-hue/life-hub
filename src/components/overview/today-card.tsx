@@ -15,11 +15,13 @@ import { WEEKDAY_NAMES } from "@/lib/utils/date";
 interface TodayCardProps {
   slots: ScheduleSlot[];
   weekday: Weekday;
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
-export function TodayCard({ slots, weekday }: TodayCardProps) {
+export function TodayCard({ slots, weekday, index }: TodayCardProps) {
   return (
-    <Panel className="flex flex-col">
+    <Panel className="flex flex-col" index={index}>
       <PanelHeader
         eyebrow={WEEKDAY_NAMES[weekday]}
         title="Пары сегодня"

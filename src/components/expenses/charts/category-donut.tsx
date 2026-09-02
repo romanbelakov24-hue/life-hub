@@ -7,6 +7,7 @@ import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { EmptyState, ShareBar } from "@/components/ui/misc";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { useChartTheme } from "@/components/charts/use-chart-theme";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import type { CategoryBreakdownItem } from "@/lib/types";
 import { formatNumber, formatRub, pluralize } from "@/lib/utils/format";
 
@@ -21,13 +22,16 @@ import { formatNumber, formatRub, pluralize } from "@/lib/utils/format";
 interface CategoryDonutProps {
   breakdown: CategoryBreakdownItem[];
   total: number;
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
-export function CategoryDonut({ breakdown, total }: CategoryDonutProps) {
+export function CategoryDonut({ breakdown, total, index }: CategoryDonutProps) {
   const theme = useChartTheme();
+  const reducedMotion = useReducedMotion();
 
   return (
-    <Panel className="flex flex-col">
+    <Panel className="flex flex-col" index={index}>
       <PanelHeader
         eyebrow="Структура"
         title="По категориям"
@@ -58,7 +62,10 @@ export function CategoryDonut({ breakdown, total }: CategoryDonutProps) {
                   paddingAngle={2}
                   strokeWidth={2}
                   stroke={theme.surface}
-                  isAnimationActive={false}
+                  // Кольцо разворачивается по кругу — видно, как складываются доли.
+                  isAnimationActive={!reducedMotion}
+                  animationDuration={900}
+                  animationEasing="ease-out"
                 >
                   {breakdown.map((item) => (
                     <Cell key={item.categoryId} fill={item.color} />

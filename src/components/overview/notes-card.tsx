@@ -8,9 +8,9 @@ import { formatDayMonthShort } from "@/lib/utils/date";
 
 /** Последние изменённые заметки — быстрый доступ к тому, что писалось недавно. */
 
-export function NotesCard({ notes }: { notes: Note[] }) {
+export function NotesCard({ notes, index }: { notes: Note[]; index?: number }) {
   return (
-    <Panel className="flex flex-col">
+    <Panel className="flex flex-col" index={index}>
       <PanelHeader
         eyebrow="Учёба"
         title="Свежие заметки"

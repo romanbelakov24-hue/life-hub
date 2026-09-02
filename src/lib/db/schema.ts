@@ -75,6 +75,14 @@ export const SCHEMA_STATEMENTS: string[] = [
    )`,
 
   `CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done, due_date)`,
+
+  // ─── Настройки ──────────────────────────────────────────────────────────────
+  // Ключ-значение для того, что не заслуживает своей таблицы: токен
+  // календарной ленты, флаги, будущие настройки уведомлений.
+  `CREATE TABLE IF NOT EXISTS settings (
+     key   TEXT PRIMARY KEY,
+     value TEXT NOT NULL
+   )`,
 ];
 
 /**

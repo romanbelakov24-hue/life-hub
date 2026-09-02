@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { Metric, TrendPill } from "@/components/ui/misc";
 import type { PeriodTotals } from "@/lib/types";
-import { formatRub, formatSignedPercent } from "@/lib/utils/format";
+import { formatSignedPercent } from "@/lib/utils/format";
 
 /**
  * Итоги за день, неделю и месяц.
@@ -40,7 +40,7 @@ export function SummaryCards({ totals, monthTitle, isCurrentMonth }: SummaryCard
       <div className="col-span-2 bg-surface p-4 sm:p-5">
         <Metric
           label={isCurrentMonth ? "Месяц (идёт)" : "За месяц"}
-          value={formatRub(totals.month, 0)}
+          count={{ value: totals.month, format: "rub" }}
           emphasis
           caption={monthTitle}
           suffix={
@@ -53,13 +53,13 @@ export function SummaryCards({ totals, monthTitle, isCurrentMonth }: SummaryCard
       </div>
 
       <div className="bg-surface p-4 sm:p-5">
-        <Metric label="Сегодня" value={formatRub(totals.today, 0)} />
+        <Metric label="Сегодня" count={{ value: totals.today, format: "rub" }} />
       </div>
 
       <div className="bg-surface p-4 sm:p-5">
         <Metric
           label="Эта неделя"
-          value={formatRub(totals.week, 0)}
+          count={{ value: totals.week, format: "rub" }}
           caption="с понедельника"
         />
       </div>

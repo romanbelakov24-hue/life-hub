@@ -57,12 +57,13 @@ export function Modal({ open, onClose, title, description, children, footer }: M
         type="button"
         aria-label="Закрыть"
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-[2px]"
+        className="animate-fade absolute inset-0 cursor-default bg-black/50 backdrop-blur-[3px]"
       />
 
       <div
         className={cn(
-          "relative z-10 flex max-h-[92vh] w-full flex-col border border-line bg-surface",
+          "animate-scale-in relative z-10 flex max-h-[92vh] w-full flex-col",
+          "border border-line bg-surface shadow-[0_24px_70px_-20px_var(--glow)]",
           "rounded-t-[18px] sm:max-w-lg sm:rounded-[16px]",
         )}
       >

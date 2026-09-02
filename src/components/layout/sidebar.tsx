@@ -1,5 +1,6 @@
 "use client";
 
+import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -67,8 +68,25 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-line px-4 py-4">
+      <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-4">
         <ThemeToggle />
+
+        {/* Настройки живут вне основной навигации: заходят туда редко, а место
+            в списке разделов дороже. */}
+        <Link
+          href="/settings"
+          aria-label="Настройки"
+          title="Настройки"
+          className={cn(
+            "flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full",
+            "transition-colors duration-200",
+            pathname === "/settings"
+              ? "bg-accent-soft text-accent"
+              : "text-ink-faint hover:bg-surface-2 hover:text-ink",
+          )}
+        >
+          <Settings size={16} />
+        </Link>
       </div>
     </aside>
   );

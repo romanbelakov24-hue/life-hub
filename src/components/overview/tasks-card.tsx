@@ -24,13 +24,15 @@ interface TasksCardProps {
   today: IsoDate;
   /** Счётчики со страницы задач — показываем сводку в заголовке. */
   counters: { open: number; overdue: number; doneToday: number };
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
-export function TasksCard({ tasks, today, counters }: TasksCardProps) {
+export function TasksCard({ tasks, today, counters, index }: TasksCardProps) {
   const [isPending, startTransition] = useTransition();
 
   return (
-    <Panel className="flex flex-col">
+    <Panel className="flex flex-col" index={index}>
       <PanelHeader
         eyebrow="Учёба"
         title="Ближайшие задачи"

@@ -6,8 +6,16 @@ import { cn } from "@/lib/utils/cn";
  * Panel — базовый контейнер интерфейса.
  *
  * Вместо теней используется волосяная рамка: в «бумажной» эстетике проекта
- * плоскости разделяются линиями, а не подъёмом. Из-за этого панели одинаково
- * читаются в светлой и тёмной теме.
+ * плоскости разделяются линиями, а не подъёмом.
+ *
+ * Фон намеренно полупрозрачный с размытием: под интерфейсом дрейфуют цветные
+ * пятна (см. AmbientGlow), и панель должна их приглушать, а не закрывать
+ * наглухо. Так появляется слоистость — сцена читается как стекло над светом,
+ * а не как набор плашек. Контраст текста при этом не меняется: surface и paper
+ * различаются на несколько процентов яркости.
+ *
+ * По верхней кромке идёт световой блик (edge-light) — он отделяет панель от
+ * фона там, где рамки почти не видно.
  */
 
 interface PanelProps {
@@ -15,16 +23,23 @@ interface PanelProps {
   className?: string;
   /** Убирает внутренние отступы — для таблиц во всю ширину панели. */
   flush?: boolean;
+  /** Порядковый номер для каскадного появления в сетке. */
+  index?: number;
 }
 
-export function Panel({ children, className, flush = false }: PanelProps) {
+export function Panel({ children, className, flush = false, index }: PanelProps) {
   return (
     <section
       className={cn(
-        "relative rounded-[14px] border border-line bg-surface",
+        "edge-light animate-rise relative rounded-[14px]",
+        "border border-line bg-surface/85 backdrop-blur-xl",
+        index !== undefined && "stagger",
+        // overflow-hidden только для flush-панелей: у панелей с графиками
+        // он обрезал бы тултипы Recharts, вылезающие за край области.
         flush ? "overflow-hidden" : "p-4 sm:p-5",
         className,
       )}
+      style={index !== undefined ? ({ "--i": index } as React.CSSProperties) : undefined}
     >
       {children}
     </section>

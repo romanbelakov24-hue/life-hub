@@ -4,6 +4,7 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 
 
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { useChartTheme } from "@/components/charts/use-chart-theme";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import type { TrendPoint } from "@/lib/types";
 import { formatCompact } from "@/lib/utils/format";
@@ -20,14 +21,17 @@ interface MonthCompareProps {
   months: TrendPoint[];
   /** Ключ выбранного месяца, например `2026-09`. */
   activeMonthKey: string;
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
-export function MonthCompare({ months, activeMonthKey }: MonthCompareProps) {
+export function MonthCompare({ months, activeMonthKey, index }: MonthCompareProps) {
   const theme = useChartTheme();
+  const reducedMotion = useReducedMotion();
   const hasData = months.length > 0;
 
   return (
-    <Panel>
+    <Panel index={index}>
       <PanelHeader
         eyebrow="Сравнение"
         title="Месяц к месяцу"
@@ -52,7 +56,13 @@ export function MonthCompare({ months, activeMonthKey }: MonthCompareProps) {
                 tickFormatter={formatCompact}
               />
               <Tooltip cursor={{ fill: theme.line, opacity: 0.4 }} content={<ChartTooltip />} />
-              <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              <Bar
+                dataKey="total"
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={!reducedMotion}
+                animationDuration={700}
+                animationEasing="ease-out"
+              >
                 {months.map((month) => (
                   <Cell
                     key={month.key}

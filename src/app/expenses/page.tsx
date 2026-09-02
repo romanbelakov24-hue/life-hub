@@ -98,19 +98,19 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
 
   return (
     <>
+      {/* Подзаголовка с месяцем нет намеренно: он дублировал бы переключатель,
+          который стоит прямо под ним и показывает то же самое. */}
       <PageHeader
         eyebrow="Финансы"
         title="Расходы"
-        description={formatMonthTitle(monthAnchor)}
         actions={
-          <>
-            <ExpensesToolbar
-              monthAnchor={monthAnchor}
-              view={view}
-              currentMonthKey={monthKeyOf(today)}
-            />
+          <ExpensesToolbar
+            monthAnchor={monthAnchor}
+            view={view}
+            currentMonthKey={monthKeyOf(today)}
+          >
             <CategoryManager categories={categories} />
-          </>
+          </ExpensesToolbar>
         }
       />
 
@@ -138,6 +138,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
                 daily={buildDailyTrend(expenses, monthAnchor)}
                 weekly={buildWeeklyTrend(expenses)}
                 today={today}
+                index={0}
               />
             </div>
 
@@ -145,15 +146,16 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
               <MonthCompare
                 months={buildMonthlyTrend(monthlyTotals)}
                 activeMonthKey={monthKeyOf(monthAnchor)}
+                index={1}
               />
             </div>
 
             <div className="lg:col-span-3">
-              <CategoryDonut breakdown={breakdown} total={monthTotal} />
+              <CategoryDonut breakdown={breakdown} total={monthTotal} index={2} />
             </div>
 
             <div className="lg:col-span-2">
-              <StatsPanel stats={stats} daysElapsed={daysElapsed} />
+              <StatsPanel stats={stats} daysElapsed={daysElapsed} index={3} />
             </div>
           </div>
         )}

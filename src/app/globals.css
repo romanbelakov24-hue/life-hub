@@ -40,6 +40,12 @@
   /* прочее */
   --ring: #bf3d18;
   --shadow-color: 30 20 10;
+
+  /* Свечение акцента. На бумаге держим его почти незаметным: приём должен
+     читаться как тёплая подсветка, а не как неон поверх светлого фона. */
+  --glow: rgb(191 61 24 / 0.22);
+  --glow-strong: rgb(191 61 24 / 0.38);
+  --glow-cool: rgb(47 128 237 / 0.16);
 }
 
 .dark {
@@ -67,6 +73,11 @@
 
   --ring: #ff6438;
   --shadow-color: 0 0 0;
+
+  /* В темноте свечение — основной носитель глубины, поэтому заметно сильнее. */
+  --glow: rgb(255 100 56 / 0.42);
+  --glow-strong: rgb(255 100 56 / 0.7);
+  --glow-cool: rgb(90 150 255 / 0.28);
 }
 
 /* Прокидываем токены в утилиты Tailwind: bg-surface, text-ink-muted, ... */
@@ -96,6 +107,8 @@
   --font-display: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --color-glow: var(--glow);
 
   --radius-card: 14px;
 
@@ -229,6 +242,212 @@
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   СВЕЧЕНИЕ, ГЛУБИНА И ДВИЖЕНИЕ
+
+   Слой поверх «бумажной» базы. Задача — добавить сцене глубину и жизнь,
+   не превращая интерфейс в неоновую витрину: свет работает мягкими пятнами
+   на фоне, движение короткое и всегда объясняет, что произошло.
+
+   Всё движение здесь отключается системной настройкой «уменьшить движение»
+   (блок в самом низу файла), поэтому анимации нигде не несут смысла в одиночку.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ─── Фоновое свечение ────────────────────────────────────────────────────
+     Размытые цветные пятна, медленно дрейфующие за контентом. Лежат в
+     отдельном фиксированном слое ниже интерфейса (у каркаса z-10). */
+  .ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    contain: strict;
+  }
+
+  .ambient-blob {
+    position: absolute;
+    border-radius: 9999px;
+    /* blur здесь дороже всего; will-change удерживает пятно на слое GPU */
+    filter: blur(90px);
+    will-change: transform;
+    animation: drift 26s ease-in-out infinite;
+  }
+
+  /* ─── Контурный заголовок-подложка ────────────────────────────────────────
+     Огромное имя раздела, набранное одной обводкой. Держит вертикаль
+     страницы и даёт масштаб, не перетягивая внимание с данных. */
+  .ghost-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.055em;
+    line-height: 0.82;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--line-strong);
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* ─── Фаска ───────────────────────────────────────────────────────────────
+     Срезанные углы по диагонали — вместо равномерного скругления.
+     Приём из технической графики: форма выглядит «вырезанной», а не мягкой. */
+  .chamfer {
+    clip-path: polygon(
+      12px 0,
+      100% 0,
+      100% calc(100% - 12px),
+      calc(100% - 12px) 100%,
+      0 100%,
+      0 12px
+    );
+  }
+
+  .chamfer-sm {
+    clip-path: polygon(
+      7px 0,
+      100% 0,
+      100% calc(100% - 7px),
+      calc(100% - 7px) 100%,
+      0 100%,
+      0 7px
+    );
+  }
+
+  /* ─── Реакция панели на курсор ────────────────────────────────────────────
+     Подъём на два пикселя и тёплая тень акцентом. Только для мыши: на
+     тач-устройствах hover залипает, поэтому прячем за hover: hover. */
+  .lift {
+    transition:
+      transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 260ms ease,
+      box-shadow 260ms ease;
+  }
+
+  @media (hover: hover) {
+    .lift:hover {
+      transform: translateY(-2px);
+      border-color: var(--line-strong);
+      box-shadow: 0 10px 34px -14px var(--glow);
+    }
+  }
+
+  /* Тонкая световая линия по верхней кромке — «блик» на грани панели. */
+  .edge-light {
+    position: relative;
+  }
+
+  .edge-light::after {
+    content: "";
+    position: absolute;
+    inset-inline: 12%;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--glow-strong), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+}
+
+@layer utilities {
+  /* ─── Появление ───────────────────────────────────────────────────────────
+     rise    — карточки и блоки: короткий подъём снизу;
+     fade    — вторичный текст;
+     sweep   — раскрытие слева направо, для полос и заголовков;
+     scale-in — модалки и всплывающие формы. */
+  .animate-rise {
+    animation: rise 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .animate-fade {
+    animation: fade 420ms ease both;
+  }
+
+  .animate-sweep {
+    animation: sweep 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Каскад: элементу задаётся --i (порядковый номер), задержка считается сама.
+     Потолок в 12 шагов — иначе хвост длинного списка появляется через секунду
+     после начала и это читается как подтормаживание, а не как приём. */
+  .stagger {
+    animation-delay: calc(min(var(--i, 0), 12) * 55ms);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 28px var(--glow);
+  }
+
+  /* Обводка со свечением — для активных и выделенных состояний. */
+  .ring-glow {
+    box-shadow:
+      0 0 0 1px var(--line-strong),
+      0 0 30px -8px var(--glow-strong);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sweep {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Медленный дрейф фоновых пятен. Трансформируем только transform —
+   layout и paint не пересчитываются, всё остаётся на композиторе. */
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(4%, -5%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-4%, 4%, 0) scale(0.95);
+  }
+}
+
 /* Уважаем системную настройку «уменьшить движение». */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -238,5 +457,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Фоновые пятна остаются, но замирают: свет — часть оформления,
+     движение — нет. */
+  .ambient-blob {
+    animation: none !important;
   }
 }

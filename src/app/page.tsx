@@ -70,6 +70,7 @@ export default async function OverviewPage() {
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <MoneyCard
+            index={0}
             todayTotal={todayTotal}
             monthTotal={sumExpenses(monthExpenses)}
             monthTitle={formatMonthTitle(today)}
@@ -79,15 +80,15 @@ export default async function OverviewPage() {
         </div>
 
         <div className="lg:col-span-2">
-          <TodayCard slots={todaySlots} weekday={todayWeekday} />
+          <TodayCard slots={todaySlots} weekday={todayWeekday} index={1} />
         </div>
 
         <div className="lg:col-span-3">
-          <TasksCard tasks={upcomingTasks} today={today} counters={taskCounters} />
+          <TasksCard tasks={upcomingTasks} today={today} counters={taskCounters} index={2} />
         </div>
 
         <div className="lg:col-span-2">
-          <NotesCard notes={recentNotes} />
+          <NotesCard notes={recentNotes} index={3} />
         </div>
       </div>
     </>

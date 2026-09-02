@@ -17,6 +17,7 @@ import {
 
 import { ChartTooltip } from "@/components/charts/chart-tooltip";
 import { useChartTheme } from "@/components/charts/use-chart-theme";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { dailyTrendTooltipLabel } from "@/lib/analytics/expenses";
 import type { IsoDate, TrendPoint } from "@/lib/types";
@@ -44,11 +45,14 @@ interface SpendingTrendProps {
   weekly: TrendPoint[];
   /** Сегодняшняя дата — её столбец выделяется цветом текста. */
   today: IsoDate;
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
-export function SpendingTrend({ daily, weekly, today }: SpendingTrendProps) {
+export function SpendingTrend({ daily, weekly, today, index }: SpendingTrendProps) {
   const [granularity, setGranularity] = useState<Granularity>("day");
   const theme = useChartTheme();
+  const reducedMotion = useReducedMotion();
 
   const isDaily = granularity === "day";
   const data = isDaily ? daily : weekly;
@@ -64,7 +68,7 @@ export function SpendingTrend({ daily, weekly, today }: SpendingTrendProps) {
   const axisStyle = { fontSize: 10, fill: theme.inkFaint };
 
   return (
-    <Panel>
+    <Panel index={index}>
       <PanelHeader
         eyebrow="Динамика"
         title={isDaily ? "Траты по дням" : "Траты по неделям"}
@@ -131,7 +135,15 @@ export function SpendingTrend({ daily, weekly, today }: SpendingTrendProps) {
                   strokeDasharray="3 4"
                   strokeWidth={1}
                 />
-                <Bar dataKey="total" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                <Bar
+                  dataKey="total"
+                  radius={[3, 3, 0, 0]}
+                  // Столбцы вырастают снизу — направление роста совпадает
+                  // со смыслом величины.
+                  isAnimationActive={!reducedMotion}
+                  animationDuration={700}
+                  animationEasing="ease-out"
+                >
                   {data.map((point) => (
                     <Cell
                       key={point.key}
@@ -175,7 +187,9 @@ export function SpendingTrend({ daily, weekly, today }: SpendingTrendProps) {
                   strokeWidth={2}
                   dot={{ r: 3, fill: theme.accent, strokeWidth: 0 }}
                   activeDot={{ r: 5 }}
-                  isAnimationActive={false}
+                  isAnimationActive={!reducedMotion}
+                  animationDuration={900}
+                  animationEasing="ease-out"
                 />
               </LineChart>
             )}

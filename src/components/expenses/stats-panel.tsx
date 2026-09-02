@@ -15,9 +15,11 @@ interface StatsPanelProps {
   stats: ExpenseStats;
   /** Сколько дней месяца учтено в среднем за день — поясняем в подписи. */
   daysElapsed: number;
+  /** Порядковый номер в сетке — задаёт задержку появления. */
+  index?: number;
 }
 
-export function StatsPanel({ stats, daysElapsed }: StatsPanelProps) {
+export function StatsPanel({ stats, daysElapsed, index }: StatsPanelProps) {
   const TrendIcon =
     stats.monthOverMonthPercent === null || Math.abs(stats.monthOverMonthPercent) < 0.05
       ? ArrowRight
@@ -26,13 +28,13 @@ export function StatsPanel({ stats, daysElapsed }: StatsPanelProps) {
         : ArrowDownRight;
 
   return (
-    <Panel>
+    <Panel index={index}>
       <PanelHeader eyebrow="Статистика" title="Как прошёл месяц" />
 
       <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
         <Metric
           label="Средний чек"
-          value={formatRub(stats.averageCheck, 0)}
+          count={{ value: stats.averageCheck, format: "rub" }}
           caption={`${stats.transactionCount} ${pluralize(
             stats.transactionCount,
             "операция",
@@ -43,7 +45,7 @@ export function StatsPanel({ stats, daysElapsed }: StatsPanelProps) {
 
         <Metric
           label="В день"
-          value={formatRub(stats.averagePerDay, 0)}
+          count={{ value: stats.averagePerDay, format: "rub" }}
           caption={`за ${daysElapsed} ${pluralize(daysElapsed, "день", "дня", "дней")}`}
         />
 

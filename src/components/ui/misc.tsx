@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { CountUp, type CountFormat } from "@/components/ui/count-up";
 import { cn } from "@/lib/utils/cn";
 import { withAlpha } from "@/config/palette";
 
@@ -143,9 +144,8 @@ export function ShareBar({ value, color, className }: ShareBarProps) {
 
 // ─── Крупная цифра метрики ───────────────────────────────────────────────────
 
-interface MetricProps {
+interface MetricBaseProps {
   label: string;
-  value: string;
   /** Дополнение справа от значения: тренд, единица измерения. */
   suffix?: ReactNode;
   /** Пояснение под значением. */
@@ -155,27 +155,41 @@ interface MetricProps {
   className?: string;
 }
 
+/**
+ * Значение задаётся ровно одним из двух способов: готовой строкой либо числом
+ * с ключом формата — тогда оно анимируется. Union не даёт передать оба сразу
+ * и забыть, какое из них выиграет.
+ */
+type MetricProps = MetricBaseProps &
+  (
+    | { value: string; count?: never }
+    | { value?: never; count: { value: number; format: CountFormat } }
+  );
+
 export function Metric({
   label,
   value,
+  count,
   suffix,
   caption,
   emphasis = false,
   className,
 }: MetricProps) {
+  const valueClasses = cn(
+    "tabular font-semibold tracking-[-0.035em] text-ink",
+    emphasis ? "text-[28px] leading-none sm:text-[34px]" : "text-xl leading-none",
+  );
+
   return (
     <div className={cn("min-w-0", className)}>
       <p className="eyebrow">{label}</p>
 
       <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span
-          className={cn(
-            "tabular font-semibold tracking-[-0.035em] text-ink",
-            emphasis ? "text-[28px] leading-none sm:text-[34px]" : "text-xl leading-none",
-          )}
-        >
-          {value}
-        </span>
+        {count ? (
+          <CountUp value={count.value} format={count.format} className={valueClasses} />
+        ) : (
+          <span className={valueClasses}>{value}</span>
+        )}
         {suffix}
       </div>
 
