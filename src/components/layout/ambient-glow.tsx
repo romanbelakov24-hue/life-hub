@@ -17,6 +17,11 @@ interface Blob {
   style: React.CSSProperties;
   /** Сдвиг фазы, чтобы пятна не двигались синхронно. */
   delay: string;
+  /**
+   * Глубина параллакса — насколько пятно смещается за курсором.
+   * Разные значения создают ощущение слоёв: дальние пятна ходят меньше.
+   */
+  depth: string;
 }
 
 const BLOBS: Blob[] = [
@@ -29,6 +34,7 @@ const BLOBS: Blob[] = [
       background: "radial-gradient(circle, var(--glow-strong), transparent 68%)",
     },
     delay: "0s",
+    depth: "26px",
   },
   {
     style: {
@@ -39,6 +45,7 @@ const BLOBS: Blob[] = [
       background: "radial-gradient(circle, var(--glow), transparent 70%)",
     },
     delay: "-9s",
+    depth: "16px",
   },
   {
     // Холодное пятно уравновешивает два тёплых, иначе вся сцена уезжает в оранжевый.
@@ -50,6 +57,7 @@ const BLOBS: Blob[] = [
       background: "radial-gradient(circle, var(--glow-cool), transparent 72%)",
     },
     delay: "-17s",
+    depth: "38px",
   },
 ];
 
@@ -59,9 +67,14 @@ export function AmbientGlow() {
       {BLOBS.map((blob, index) => (
         <div
           key={index}
-          className="ambient-blob"
-          style={{ ...blob.style, animationDelay: blob.delay }}
-        />
+          className="ambient-parallax"
+          style={{ "--depth": blob.depth } as React.CSSProperties}
+        >
+          <div
+            className="ambient-blob"
+            style={{ ...blob.style, animationDelay: blob.delay }}
+          />
+        </div>
       ))}
     </div>
   );

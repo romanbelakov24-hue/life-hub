@@ -14,6 +14,12 @@ import { str } from "@/lib/db/rows";
 /** Ключ токена, которым подписывается календарная лента. */
 export const CALENDAR_TOKEN_KEY = "calendar_feed_token";
 
+/** Ключ токена публичной страницы-сводки. */
+export const SHARE_TOKEN_KEY = "share_summary_token";
+
+/** Включена ли публичная сводка. Хранится строкой "1" / "0". */
+export const SHARE_ENABLED_KEY = "share_summary_enabled";
+
 export async function getSetting(key: string): Promise<string | null> {
   const client = await db();
   const result = await client.execute({
@@ -60,4 +66,37 @@ export async function rotateCalendarToken(): Promise<string> {
 /** 32 hex-символа — 128 бит случайности, перебором не находится. */
 function createFeedToken(): string {
   return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "").slice(0, 32);
+}
+
+// ─── Публичная сводка ────────────────────────────────────────────────────────
+
+/**
+ * Токен страницы-сводки. Как и у календаря — создаётся при первом обращении.
+ *
+ * Наличие токена ещё не означает, что страница открыта: за это отвечает
+ * отдельный флаг. Так ссылку можно подготовить и скопировать заранее, а
+ * доступ включить и выключить в один клик, не меняя адрес.
+ */
+export async function getOrCreateShareToken(): Promise<string> {
+  const existing = await getSetting(SHARE_TOKEN_KEY);
+  if (existing) return existing;
+
+  const token = createFeedToken();
+  await setSetting(SHARE_TOKEN_KEY, token);
+  return token;
+}
+
+export async function rotateShareToken(): Promise<string> {
+  const token = createFeedToken();
+  await setSetting(SHARE_TOKEN_KEY, token);
+  return token;
+}
+
+export async function isShareEnabled(): Promise<boolean> {
+  // По умолчанию выключено: публичный доступ включается осознанно.
+  return (await getSetting(SHARE_ENABLED_KEY)) === "1";
+}
+
+export async function setShareEnabled(enabled: boolean): Promise<void> {
+  await setSetting(SHARE_ENABLED_KEY, enabled ? "1" : "0");
 }

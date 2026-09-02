@@ -31,7 +31,7 @@ export function Panel({ children, className, flush = false, index }: PanelProps)
   return (
     <section
       className={cn(
-        "edge-light animate-rise relative rounded-[14px]",
+        "edge-light spotlight animate-rise relative rounded-[14px]",
         "border border-line bg-surface/85 backdrop-blur-xl",
         index !== undefined && "stagger",
         // overflow-hidden только для flush-панелей: у панелей с графиками
@@ -39,6 +39,8 @@ export function Panel({ children, className, flush = false, index }: PanelProps)
         flush ? "overflow-hidden" : "p-4 sm:p-5",
         className,
       )}
+      // Метка для PointerTracker: он ищет ближайшую панель через closest().
+      data-spotlight
       style={index !== undefined ? ({ "--i": index } as React.CSSProperties) : undefined}
     >
       {children}

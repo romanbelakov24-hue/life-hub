@@ -266,6 +266,23 @@
     contain: strict;
   }
 
+  /* Обёртка пятна: сдвигается за курсором. Отдельный элемент нужен потому,
+     что у самого пятна transform занят анимацией дрейфа — совместить две
+     трансформации на одном элементе нельзя. */
+  .ambient-parallax {
+    position: absolute;
+    inset: 0;
+    transform: translate3d(
+      calc(var(--px, 0) * var(--depth, 14px)),
+      calc(var(--py, 0) * var(--depth, 14px)),
+      0
+    );
+    /* Длинный переход намеренно: свет должен тянуться за курсором с
+       запаздыванием, иначе движение читается как дрожание фона. */
+    transition: transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+  }
+
   .ambient-blob {
     position: absolute;
     border-radius: 9999px;
@@ -273,6 +290,38 @@
     filter: blur(90px);
     will-change: transform;
     animation: drift 26s ease-in-out infinite;
+  }
+
+  /* ─── Световое пятно под курсором ─────────────────────────────────────────
+     Рисуется на самой панели поверх её фона, но под содержимым. Координаты
+     приходят из PointerTracker. */
+  .spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 320ms ease;
+    background: radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 50%),
+      var(--glow),
+      transparent 72%
+    );
+  }
+
+  /* Содержимое поднимается над пятном. Без этого абсолютный псевдоэлемент
+     перекрыл бы текст: непозиционированные потомки рисуются ниже него. */
+  .spotlight > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (hover: hover) {
+    .spotlight:hover::before {
+      opacity: 1;
+    }
   }
 
   /* ─── Контурный заголовок-подложка ────────────────────────────────────────
@@ -372,6 +421,17 @@
     animation: scale-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
+  .animate-grow {
+    animation: grow 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Вырастает по высоте до собственного значения. fill-mode именно backwards:
+     конечного кадра у анимации нет, и после её окончания элемент должен
+     вернуться к своей инлайновой высоте, а не остаться в кадре анимации. */
+  .animate-grow-height {
+    animation: grow-height 700ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+
   /* Каскад: элементу задаётся --i (порядковый номер), задержка считается сама.
      Потолок в 12 шагов — иначе хвост длинного списка появляется через секунду
      после начала и это читается как подтормаживание, а не как приём. */
@@ -422,6 +482,24 @@
   }
 }
 
+/* Полоса, вырастающая до своей доли. Ширина берётся из --w, которую
+   компонент задаёт инлайном: так значение приходит с сервера, а анимация
+   остаётся полностью на CSS. */
+@keyframes grow {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--w, 0%);
+  }
+}
+
+@keyframes grow-height {
+  from {
+    height: 0;
+  }
+}
+
 @keyframes scale-in {
   from {
     opacity: 0;
@@ -463,5 +541,13 @@
      движение — нет. */
   .ambient-blob {
     animation: none !important;
+  }
+
+  .ambient-parallax {
+    transform: none !important;
+  }
+
+  .spotlight::before {
+    display: none;
   }
 }

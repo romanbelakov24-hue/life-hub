@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Unbounded } from "next/font/google";
 
 import { AmbientGlow } from "@/components/layout/ambient-glow";
-import { AppShell } from "@/components/layout/app-shell";
+import { PointerTracker } from "@/components/layout/pointer-tracker";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 
 import "./globals.css";
@@ -75,7 +75,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           {/* Свечение лежит ниже каркаса (у него z-10) и ничего не перехватывает. */}
           <AmbientGlow />
-          <AppShell>{children}</AppShell>
+          <PointerTracker />
+          {/* Каркас с навигацией добавляет layout группы (app): публичная
+              страница-сводка должна открываться без меню. */}
+          {children}
         </ThemeProvider>
       </body>
     </html>

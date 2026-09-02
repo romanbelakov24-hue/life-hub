@@ -3,7 +3,12 @@ import { headers } from "next/headers";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { CalendarFeed } from "@/components/settings/calendar-feed";
-import { getOrCreateCalendarToken } from "@/lib/queries/settings";
+import { ShareControl } from "@/components/settings/share-control";
+import {
+  getOrCreateCalendarToken,
+  getOrCreateShareToken,
+  isShareEnabled,
+} from "@/lib/queries/settings";
 
 /**
  * Настройки.
@@ -24,19 +29,23 @@ export const dynamic = "force-dynamic";
  * продакшна. За прокси Netlify оригинальная схема приезжает в
  * `x-forwarded-proto` — без неё на проде получился бы http-адрес.
  */
-async function resolveFeedUrl(token: string): Promise<string> {
+async function resolveOrigin(): Promise<string> {
   const headerList = await headers();
 
   const host = headerList.get("host") ?? "localhost:3000";
   const protocol =
     headerList.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
 
-  return `${protocol}://${host}/api/calendar/${token}.ics`;
+  return `${protocol}://${host}`;
 }
 
 export default async function SettingsPage() {
-  const token = await getOrCreateCalendarToken();
-  const feedUrl = await resolveFeedUrl(token);
+  const [origin, calendarToken, shareToken, shareEnabled] = await Promise.all([
+    resolveOrigin(),
+    getOrCreateCalendarToken(),
+    getOrCreateShareToken(),
+    isShareEnabled(),
+  ]);
 
   return (
     <>
@@ -47,7 +56,8 @@ export default async function SettingsPage() {
       />
 
       <div className="flex flex-col gap-4">
-        <CalendarFeed feedUrl={feedUrl} />
+        <CalendarFeed feedUrl={`${origin}/api/calendar/${calendarToken}.ics`} />
+        <ShareControl shareUrl={`${origin}/s/${shareToken}`} enabled={shareEnabled} />
       </div>
     </>
   );

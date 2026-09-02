@@ -1,0 +1,106 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import { SummaryReport } from "@/components/share/summary-report";
+import {
+  buildCategoryBreakdown,
+  buildDailyTrend,
+  sumExpenses,
+} from "@/lib/analytics/expenses";
+import { listExpensesInRange, sumExpensesInRange } from "@/lib/queries/expenses";
+import { isShareEnabled, SHARE_TOKEN_KEY, getSetting } from "@/lib/queries/settings";
+import {
+  addMonths,
+  endOfMonth,
+  formatMonthTitle,
+  fromIso,
+  startOfMonth,
+  todayIso,
+} from "@/lib/utils/date";
+import { roundTo } from "@/lib/utils/format";
+
+/**
+ * Публичная сводка трат: `/s/<токен>`
+ *
+ * Лежит вне группы `(app)`, поэтому открывается без навигации приложения.
+ * Это принципиально: у сайта нет авторизации, и меню на странице, которой
+ * делятся с другими, вело бы прямо ко всем личным данным.
+ *
+ * Страница всегда показывает текущий месяц — ссылку достаточно отправить один
+ * раз, дальше она обновляется сама.
+ */
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Сводка трат",
+  description: "Краткая сводка расходов за месяц",
+  // Страница не должна попадать в поисковую выдачу: её адрес — это её защита.
+  robots: { index: false, follow: false, nocache: true },
+};
+
+/** Сравнение за постоянное время — см. пояснение в ленте календаря. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+
+  let diff = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    diff |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  }
+  return diff === 0;
+}
+
+export default async function SharedSummaryPage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = await params;
+
+  const [expected, enabled] = await Promise.all([
+    getSetting(SHARE_TOKEN_KEY),
+    isShareEnabled(),
+  ]);
+
+  // Выключенный доступ и неверный токен ведут себя одинаково — страницы просто
+  // «не существует». Иначе по разнице ответов можно было бы понять, что адрес
+  // угадан верно, а доступ временно закрыт.
+  if (!enabled || !expected || !safeEqual(token, expected)) {
+    notFound();
+  }
+
+  const today = todayIso();
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
+  const prevMonth = addMonths(today, -1);
+
+  const [expenses, prevTotal] = await Promise.all([
+    listExpensesInRange(monthStart, monthEnd),
+    sumExpensesInRange(startOfMonth(prevMonth), endOfMonth(prevMonth)),
+  ]);
+
+  const total = sumExpenses(expenses);
+  const daysElapsed = fromIso(today).getDate();
+
+  const changePercent =
+    prevTotal > 0 ? roundTo(((total - prevTotal) / prevTotal) * 100, 1) : null;
+
+  // «Сентябрь 2026» -> «Сентябрь» + 2026: в заголовке они разного размера.
+  const [monthName, yearText] = formatMonthTitle(today).split(" ");
+
+  return (
+    <main className="relative z-10 min-h-dvh">
+      <SummaryReport
+        monthName={monthName ?? ""}
+        year={Number(yearText)}
+        total={total}
+        changePercent={changePercent}
+        breakdown={buildCategoryBreakdown(expenses)}
+        daily={buildDailyTrend(expenses, today)}
+        transactionCount={expenses.length}
+        averagePerDay={daysElapsed > 0 ? roundTo(total / daysElapsed, 2) : 0}
+        daysElapsed={daysElapsed}
+      />
+    </main>
+  );
+}
