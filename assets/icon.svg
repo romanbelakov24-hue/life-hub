@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#ff6438" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ff6438" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dot" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7a4d"/>
+      <stop offset="100%" stop-color="#d9451c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="#17140f"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+
+  <!--
+    Знак: точка из логотипа над двумя убывающими штрихами — намёк на строки
+    журнала. Вся композиция уложена в окружность радиусом 338 от центра:
+    это безопасная зона адаптивной иконки Android, за её пределами круглая
+    маска на части оболочек срезает содержимое.
+  -->
+  <circle cx="512" cy="430" r="132" fill="url(#dot)"/>
+  <rect x="370" y="618" width="284" height="44" rx="22" fill="#f6f2ea"/>
+  <rect x="370" y="700" width="176" height="44" rx="22" fill="#f6f2ea" opacity="0.42"/>
+</svg>

@@ -1,14 +1,40 @@
 apply plugin: 'com.android.application'
 
+// Параметры подписи лежат в keystore.properties — файл не версионируется,
+// а сам ключ хранится за пределами репозитория. Если файла нет, релизная
+// сборка соберётся неподписанной: это нормально для проверки, но такой APK
+// RuStore не примет.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasSigningConfig = keystorePropertiesFile.exists()
+if (hasSigningConfig) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "ru.lifehub.client"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    signingConfigs {
+        if (hasSigningConfig) {
+            release {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                // v1 нужен для Android 6 и старше, v2/v3 — для современных.
+                enableV1Signing true
+                enableV2Signing true
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "ru.lifehub.client"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,6 +44,12 @@ android {
     }
     buildTypes {
         release {
+            if (hasSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+            // Обфускация выключена намеренно: приложение — тонкая оболочка
+            // вокруг сайта, скрывать в ней нечего, а ProGuard регулярно ломает
+            // мост Capacitor к нативным плагинам.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

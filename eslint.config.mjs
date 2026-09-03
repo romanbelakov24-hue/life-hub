@@ -9,9 +9,18 @@ const compat = new FlatCompat({ baseDirectory: __dirname });
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
-  // next-env.d.ts генерируется Next.js и не редактируется вручную —
-  // проверять его правилами проекта бессмысленно.
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
+  {
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      // Генерируется Next.js, вручную не редактируется.
+      "next-env.d.ts",
+      // Нативный проект Capacitor: внутри лежат вендорные cordova.js и
+      // native-bridge.js, которые правилами нашего проекта проверять
+      // бессмысленно — мы их не пишем и не правим.
+      "android/**",
+    ],
+  },
 ];
 
 export default eslintConfig;

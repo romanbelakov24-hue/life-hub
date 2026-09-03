@@ -41,3 +41,8 @@ yarn-error.log*
 /android/app/src/main/res/xml/config.xml
 /ios/App/Pods
 /ios/App/build
+
+# ключи подписи и пароли — не версионируются никогда
+/android/keystore.properties
+*.jks
+*.keystore
