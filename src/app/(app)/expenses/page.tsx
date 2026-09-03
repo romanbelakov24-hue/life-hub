@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { FileUp } from "lucide-react";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { CategoryManager } from "@/components/expenses/category-manager";
@@ -110,6 +112,13 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
             currentMonthKey={monthKeyOf(today)}
           >
             <CategoryManager categories={categories} />
+            <Link
+              href="/expenses/import"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-surface-2 px-3 text-[13px] font-medium text-ink transition-colors duration-200 hover:bg-surface-3"
+            >
+              <FileUp size={15} />
+              <span className="hidden sm:inline">Импорт</span>
+            </Link>
           </ExpensesToolbar>
         }
       />

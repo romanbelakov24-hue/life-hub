@@ -25,7 +25,10 @@ export const SCHEMA_STATEMENTS: string[] = [
      category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
      note        TEXT NOT NULL DEFAULT '',
      amount      REAL NOT NULL,
-     created_at  TEXT NOT NULL
+     created_at  TEXT NOT NULL,
+     -- Отпечаток строки банковской выписки: дата + сумма + описание.
+     -- Пустой у трат, заведённых руками. По нему отсекаются повторные импорты.
+     import_key  TEXT NOT NULL DEFAULT ''
    )`,
 
   // Выборки почти всегда идут по диапазону дат — индекс обязателен.
@@ -91,8 +94,26 @@ export const SCHEMA_STATEMENTS: string[] = [
  * игнорируются вызывающей стороной (scripts/migrate.ts).
  */
 export const ALTER_STATEMENTS: string[] = [
-  // Пример на будущее:
-  // `ALTER TABLE expenses ADD COLUMN payment_method TEXT NOT NULL DEFAULT ''`,
+  // Отпечаток строки банковской выписки: дата + сумма + описание.
+  // Пустой у трат, заведённых руками.
+  `ALTER TABLE expenses ADD COLUMN import_key TEXT NOT NULL DEFAULT ''`,
+];
+
+/**
+ * Индексы, которым нужны колонки из ALTER_STATEMENTS.
+ *
+ * Выполняются миграцией строго после ALTER — в ленивой инициализации их нет
+ * намеренно: на базе, где колонку ещё не добавили, такой индекс уронил бы весь
+ * батч, а вместе с ним и запуск приложения. Защита от повторного импорта
+ * поэтому не полагается на индекс: действие импорта само сверяется с уже
+ * записанными ключами, а индекс остаётся страховкой на уровне базы.
+ */
+export const POST_ALTER_STATEMENTS: string[] = [
+  // Частичный индекс: уникальность нужна только импортированным строкам.
+  // Без WHERE все записи, заведённые руками, имели бы одинаковый пустой ключ
+  // и конфликтовали бы между собой.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_import_key
+     ON expenses(import_key) WHERE import_key <> ''`,
 ];
 
 /** Базовые категории расходов. Пользователь может добавлять свои. */

@@ -14,7 +14,12 @@ import { createClient } from "@libsql/client";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { ALTER_STATEMENTS, SCHEMA_STATEMENTS, SEED_STATEMENTS } from "../src/lib/db/schema";
+import {
+  ALTER_STATEMENTS,
+  POST_ALTER_STATEMENTS,
+  SCHEMA_STATEMENTS,
+  SEED_STATEMENTS,
+} from "../src/lib/db/schema";
 
 /** Минимальный парсер .env — чтобы не тянуть зависимость ради одного скрипта. */
 function loadEnvFile(fileName: string): void {
@@ -68,6 +73,12 @@ async function main(): Promise<void> {
   }
   if (ALTER_STATEMENTS.length > 0) {
     console.log(`Новых колонок добавлено: ${appliedAlters}.`);
+  }
+
+  // Индексы, которым нужны только что добавленные колонки.
+  if (POST_ALTER_STATEMENTS.length > 0) {
+    await client.batch(POST_ALTER_STATEMENTS, "write");
+    console.log(`Индексов после ALTER: ${POST_ALTER_STATEMENTS.length}.`);
   }
 
   await client.batch(SEED_STATEMENTS, "write");
