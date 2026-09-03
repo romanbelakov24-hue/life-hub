@@ -79,6 +79,21 @@ export const SCHEMA_STATEMENTS: string[] = [
 
   `CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done, due_date)`,
 
+  // ─── Доходы ─────────────────────────────────────────────────────────────────
+  // Отдельная таблица, а не траты с плюсом: у дохода другой смысл и другие
+  // вопросы к нему. Смешав их в одной таблице, пришлось бы фильтровать по
+  // знаку в каждом запросе и следить, чтобы доход не попал в разбивку
+  // по категориям.
+  `CREATE TABLE IF NOT EXISTS incomes (
+     id         TEXT PRIMARY KEY,
+     date       TEXT NOT NULL,
+     amount     REAL NOT NULL,
+     source     TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date DESC)`,
+
   // ─── Настройки ──────────────────────────────────────────────────────────────
   // Ключ-значение для того, что не заслуживает своей таблицы: токен
   // календарной ленты, флаги, будущие настройки уведомлений.

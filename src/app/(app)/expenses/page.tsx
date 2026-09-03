@@ -10,8 +10,10 @@ import { SpendingTrend } from "@/components/expenses/charts/spending-trend";
 import { ExpensesToolbar } from "@/components/expenses/expenses-toolbar";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { QuickAddExpense } from "@/components/expenses/quick-add";
+import { BudgetCard } from "@/components/expenses/budget-card";
 import { StatsPanel } from "@/components/expenses/stats-panel";
 import { SummaryCards } from "@/components/expenses/summary-cards";
+import { buildBudgetForecast } from "@/lib/analytics/budget";
 import {
   buildCategoryDetails,
   buildDailyTrend,
@@ -26,6 +28,7 @@ import {
   listMonthlyTotals,
   sumExpensesInRange,
 } from "@/lib/queries/expenses";
+import { getHistoricalDailyRate, sumIncomesInRange } from "@/lib/queries/income";
 import {
   addMonths,
   endOfMonth,
@@ -76,15 +79,25 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
 
   // Независимые выборки — запускаем параллельно, чтобы не складывать задержки
   // сетевых обращений к Turso.
-  const [categories, expenses, prevMonthTotal, todayTotal, weekTotal, monthlyTotals] =
-    await Promise.all([
-      listCategories(),
-      listExpensesInRange(monthStart, monthEnd),
-      sumExpensesInRange(startOfMonth(prevMonthAnchor), endOfMonth(prevMonthAnchor)),
-      sumExpensesInRange(today, today),
-      sumExpensesInRange(startOfWeek(today), endOfWeek(today)),
-      listMonthlyTotals(6),
-    ]);
+  const [
+    categories,
+    expenses,
+    prevMonthTotal,
+    todayTotal,
+    weekTotal,
+    monthlyTotals,
+    monthIncome,
+    historicalDailyRate,
+  ] = await Promise.all([
+    listCategories(),
+    listExpensesInRange(monthStart, monthEnd),
+    sumExpensesInRange(startOfMonth(prevMonthAnchor), endOfMonth(prevMonthAnchor)),
+    sumExpensesInRange(today, today),
+    sumExpensesInRange(startOfWeek(today), endOfWeek(today)),
+    listMonthlyTotals(6),
+    sumIncomesInRange(monthStart, monthEnd),
+    getHistoricalDailyRate(monthKeyOf(monthAnchor)),
+  ]);
 
   const isCurrentMonth = monthKeyOf(monthAnchor) === monthKeyOf(today);
 
@@ -97,6 +110,14 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
   const monthTotal = sumExpenses(expenses);
   const breakdown = buildCategoryDetails(expenses);
   const stats = computeExpenseStats(expenses, prevMonthTotal, daysElapsed);
+
+  const forecast = buildBudgetForecast({
+    income: monthIncome,
+    spent: monthTotal,
+    today,
+    monthAnchor,
+    historicalDailyRate,
+  });
 
   return (
     <>
@@ -125,6 +146,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
 
       <div className="flex flex-col gap-4">
         <QuickAddExpense categories={categories} defaultDate={today} />
+
+        <BudgetCard forecast={forecast} />
 
         <SummaryCards
           totals={{

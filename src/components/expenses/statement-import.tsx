@@ -8,12 +8,14 @@ import { Field, Select } from "@/components/ui/field";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { importExpenses, type ImportOutcome } from "@/lib/actions/import";
 import { decodeFile, detectDelimiter, parseCsv } from "@/lib/import/csv";
+import { buildRowsFromPdf, extractPdfLines } from "@/lib/import/pdf";
 import {
   buildStatementRows,
   detectColumns,
   findHeaderRow,
   type ColumnMap,
   type ColumnRole,
+  type ParsedStatement,
 } from "@/lib/import/statement";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
@@ -45,6 +47,10 @@ interface RowState {
 export function StatementImport({ categories }: StatementImportProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [table, setTable] = useState<string[][] | null>(null);
+  // Разбор PDF готов сразу: колонок и шапки у него нет, настраивать нечего.
+  const [pdfParsed, setPdfParsed] = useState<ParsedStatement | null>(null);
+  const [transfersFound, setTransfersFound] = useState(0);
+  const [isReading, setIsReading] = useState(false);
   const [headerIndex, setHeaderIndex] = useState(0);
   const [columns, setColumns] = useState<ColumnMap>({
     date: -1,
@@ -67,9 +73,10 @@ export function StatementImport({ categories }: StatementImportProps) {
     "";
 
   const parsed = useMemo(() => {
+    if (pdfParsed) return pdfParsed;
     if (!table || columns.date < 0 || columns.amount < 0) return null;
     return buildStatementRows(table, headerIndex, columns, categories, treatAllAsExpense);
-  }, [table, headerIndex, columns, categories, treatAllAsExpense]);
+  }, [pdfParsed, table, headerIndex, columns, categories, treatAllAsExpense]);
 
   const expenseRows = useMemo(
     () => parsed?.rows.filter((row) => row.isExpense) ?? [],
@@ -90,6 +97,17 @@ export function StatementImport({ categories }: StatementImportProps) {
     setOutcome(null);
     setRowStates({});
     setFileName(file.name);
+    setTable(null);
+    setPdfParsed(null);
+    setTransfersFound(0);
+
+    const isPdf =
+      file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    if (isPdf) {
+      await handlePdf(file);
+      return;
+    }
 
     try {
       const buffer = await file.arrayBuffer();
@@ -119,6 +137,40 @@ export function StatementImport({ categories }: StatementImportProps) {
     }
   }
 
+  /**
+   * PDF разбирается иначе: таблицы в нём нет, строки собираются по координатам
+   * текста (см. lib/import/pdf.ts). Настраивать колонки не нужно и нечего,
+   * поэтому шаг с колонками для PDF не показывается.
+   */
+  async function handlePdf(file: File) {
+    setIsReading(true);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const pages = await extractPdfLines(buffer);
+      const { rows, transfers } = buildRowsFromPdf(pages, categories);
+
+      if (rows.length === 0) {
+        setError(
+          "В PDF не нашлось операций. Возможно, это скан: у него нет текстового слоя, и вытащить строки невозможно.",
+        );
+        return;
+      }
+
+      setPdfParsed({
+        headers: [],
+        columns: { date: -1, amount: -1, description: -1, category: -1 },
+        rows,
+        skipped: 0,
+      });
+      setTransfersFound(transfers);
+    } catch {
+      setError("Не удалось прочитать PDF.");
+    } finally {
+      setIsReading(false);
+    }
+  }
+
   function handleImport() {
     setError(null);
 
@@ -139,6 +191,8 @@ export function StatementImport({ categories }: StatementImportProps) {
 
       setOutcome(result.data);
       setTable(null);
+      setPdfParsed(null);
+      setTransfersFound(0);
       setFileName(null);
       setRowStates({});
     });
@@ -153,13 +207,13 @@ export function StatementImport({ categories }: StatementImportProps) {
         <PanelHeader
           eyebrow="Шаг 1"
           title="Файл выписки"
-          description="Выгрузите операции в CSV из приложения банка и выберите файл"
+          description="Выгрузите операции из банка в CSV или PDF и выберите файл"
         />
 
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,text/csv,text/plain"
+          accept=".csv,.pdf,text/csv,text/plain,application/pdf"
           className="sr-only"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -176,12 +230,16 @@ export function StatementImport({ categories }: StatementImportProps) {
             "transition-colors duration-200 hover:border-accent hover:bg-accent-soft/40",
           )}
         >
-          <FileUp size={22} className="text-ink-faint" />
+          {isReading ? (
+            <Loader2 size={22} className="animate-spin text-ink-faint" />
+          ) : (
+            <FileUp size={22} className="text-ink-faint" />
+          )}
           <span className="text-sm font-medium text-ink">
-            {fileName ?? "Выбрать CSV-файл"}
+            {isReading ? "Читаю файл…" : (fileName ?? "Выбрать файл выписки")}
           </span>
           <span className="text-[12px] text-ink-faint">
-            Т-Банк, Сбер, Альфа, Газпромбанк — формат определится сам
+            CSV или PDF — Т-Банк, Сбер, Альфа, Газпромбанк
           </span>
         </button>
 
@@ -210,7 +268,7 @@ export function StatementImport({ categories }: StatementImportProps) {
       </Panel>
 
       {/* ─── Настройка колонок ──────────────────────────────────────────── */}
-      {table ? (
+      {table && !pdfParsed ? (
         <Panel index={1}>
           <PanelHeader
             eyebrow="Шаг 2"
@@ -300,8 +358,16 @@ export function StatementImport({ categories }: StatementImportProps) {
 
             {incomeCount > 0 || parsed.skipped > 0 ? (
               <p className="mt-3 text-[12px] text-ink-faint">
-                {incomeCount > 0 ? `Поступлений пропущено: ${incomeCount}. ` : ""}
+                {incomeCount > 0 ? `Не отмечено: ${incomeCount}. ` : ""}
                 {parsed.skipped > 0 ? `Нераспознанных строк: ${parsed.skipped}.` : ""}
+              </p>
+            ) : null}
+
+            {transfersFound > 0 ? (
+              <p className="mt-2 text-[12px] text-ink-muted">
+                Переводов между своими счетами: {transfersFound}. Они сняты с
+                отметки — деньги никуда не потрачены, и в расходах они бы
+                удвоили месяц.
               </p>
             ) : null}
           </div>

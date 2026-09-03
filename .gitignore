@@ -46,3 +46,6 @@ yarn-error.log*
 /android/keystore.properties
 *.jks
 *.keystore
+
+# воркер pdf.js копируется скриптом перед сборкой
+/public/pdf.worker.min.mjs
