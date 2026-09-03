@@ -28,3 +28,16 @@ yarn-error.log*
 *.pem
 .vercel
 *.tsbuildinfo
+
+# мобильная обёртка: артефакты сборки
+# сам проект android/ версионируется — в нём лежит нативная конфигурация,
+# которую Capacitor не восстановит из capacitor.config.ts
+/android/app/build
+/android/build
+/android/.gradle
+/android/local.properties
+/android/app/src/main/assets/public
+/android/app/src/main/assets/capacitor.config.json
+/android/app/src/main/res/xml/config.xml
+/ios/App/Pods
+/ios/App/build
