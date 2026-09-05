@@ -94,6 +94,20 @@ export const SCHEMA_STATEMENTS: string[] = [
 
   `CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date DESC)`,
 
+  // ─── Здоровье ───────────────────────────────────────────────────────────────
+  // Одна строка на день, поля заполняются по мере поступления. У Apple Health
+  // и Xiaomi Health нет веб-API — данные приходят POST-запросом от автоматизации
+  // «Быстрых команд» на iPhone (см. HEALTH_TOKEN_KEY в settings и API-роут
+  // /api/health/[token]). Апсерт по дате: разные автоматизации могут слать
+  // разные метрики в разное время суток, каждая заполняет только свои поля.
+  `CREATE TABLE IF NOT EXISTS health_daily (
+     date               TEXT PRIMARY KEY,
+     steps              INTEGER,
+     sleep_minutes      INTEGER,
+     resting_heart_rate INTEGER,
+     updated_at         TEXT NOT NULL
+   )`,
+
   // ─── Настройки ──────────────────────────────────────────────────────────────
   // Ключ-значение для того, что не заслуживает своей таблицы: токен
   // календарной ленты, флаги, будущие настройки уведомлений.

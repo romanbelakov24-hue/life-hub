@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { failure, guard, success, type ActionResult } from "@/lib/actions/types";
 import {
   rotateCalendarToken,
+  rotateHealthToken,
   rotateShareToken,
   setShareEnabled,
 } from "@/lib/queries/settings";
@@ -51,6 +52,23 @@ export async function regenerateShareToken(): Promise<ActionResult<{ token: stri
     if (!token) return failure("Не удалось выпустить новый адрес.");
 
     revalidatePath("/settings");
+    return success({ token });
+  });
+}
+
+/**
+ * Выпускает новый адрес вебхука здоровья.
+ *
+ * Автоматизацию в «Быстрых командах» после этого нужно перенастроить на новый
+ * URL — нужно, если старый адрес куда-то утёк (например, случайно попал в
+ * скриншот или в переписку).
+ */
+export async function regenerateHealthToken(): Promise<ActionResult<{ token: string }>> {
+  return guard(async () => {
+    const token = await rotateHealthToken();
+    if (!token) return failure("Не удалось выпустить новый адрес.");
+
+    revalidatePath("/health");
     return success({ token });
   });
 }

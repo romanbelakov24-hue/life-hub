@@ -18,6 +18,7 @@ import {
   todayIso,
 } from "@/lib/utils/date";
 import { roundTo } from "@/lib/utils/format";
+import { safeEqual } from "@/lib/utils/token";
 
 /**
  * Публичная сводка трат: `/s/<токен>`
@@ -38,17 +39,6 @@ export const metadata: Metadata = {
   // Страница не должна попадать в поисковую выдачу: её адрес — это её защита.
   robots: { index: false, follow: false, nocache: true },
 };
-
-/** Сравнение за постоянное время — см. пояснение в ленте календаря. */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-
-  let diff = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    diff |= a.charCodeAt(index) ^ b.charCodeAt(index);
-  }
-  return diff === 0;
-}
 
 export default async function SharedSummaryPage({
   params,

@@ -20,6 +20,9 @@ export const SHARE_TOKEN_KEY = "share_summary_token";
 /** Включена ли публичная сводка. Хранится строкой "1" / "0". */
 export const SHARE_ENABLED_KEY = "share_summary_enabled";
 
+/** Ключ токена приёма данных здоровья от «Быстрых команд». */
+export const HEALTH_TOKEN_KEY = "health_import_token";
+
 export async function getSetting(key: string): Promise<string | null> {
   const client = await db();
   const result = await client.execute({
@@ -99,4 +102,27 @@ export async function isShareEnabled(): Promise<boolean> {
 
 export async function setShareEnabled(enabled: boolean): Promise<void> {
   await setSetting(SHARE_ENABLED_KEY, enabled ? "1" : "0");
+}
+
+// ─── Приём данных здоровья ───────────────────────────────────────────────────
+
+/**
+ * Токен вебхука здоровья. Как и у календаря — единственная защита: это
+ * приёмный адрес для POST-запросов от автоматизации на телефоне, у него нет
+ * отдельного флага включения, потому что знание непредсказуемого токена уже
+ * и есть допуск (тот же принцип, что у ленты календаря).
+ */
+export async function getOrCreateHealthToken(): Promise<string> {
+  const existing = await getSetting(HEALTH_TOKEN_KEY);
+  if (existing) return existing;
+
+  const token = createFeedToken();
+  await setSetting(HEALTH_TOKEN_KEY, token);
+  return token;
+}
+
+export async function rotateHealthToken(): Promise<string> {
+  const token = createFeedToken();
+  await setSetting(HEALTH_TOKEN_KEY, token);
+  return token;
 }

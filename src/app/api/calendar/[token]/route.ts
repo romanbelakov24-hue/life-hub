@@ -1,6 +1,7 @@
 import { buildCalendar } from "@/lib/calendar/ics";
 import { listScheduleSlots, listTasks } from "@/lib/queries/study";
 import { CALENDAR_TOKEN_KEY, getSetting } from "@/lib/queries/settings";
+import { safeEqual } from "@/lib/utils/token";
 
 /**
  * Календарная лента: `/api/calendar/<токен>.ics`
@@ -17,20 +18,6 @@ import { CALENDAR_TOKEN_KEY, getSetting } from "@/lib/queries/settings";
 
 // Лента должна отдавать актуальные данные при каждом запросе.
 export const dynamic = "force-dynamic";
-
-/**
- * Сравнение за постоянное время: обычное `===` выходит на первом несовпавшем
- * символе, и по времени ответа токен теоретически подбирается посимвольно.
- */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-
-  let diff = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    diff |= a.charCodeAt(index) ^ b.charCodeAt(index);
-  }
-  return diff === 0;
-}
 
 export async function GET(
   _request: Request,
