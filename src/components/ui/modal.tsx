@@ -1,7 +1,8 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { IconButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
@@ -12,6 +13,15 @@ import { cn } from "@/lib/utils/cn";
  * Реализовано вручную (без библиотек), потому что нужно всего три вещи:
  * закрытие по Escape, блокировка прокрутки фона и на телефоне — «шторка»
  * снизу вместо центрированного окна, до которой дотягивается большой палец.
+ *
+ * Разметка выносится порталом в <body>. Это не украшательство: любой предок с
+ * transform, filter или backdrop-filter становится точкой отсчёта для
+ * position: fixed, и окно перестаёт быть на весь экран — оно запирается внутри
+ * этого предка. Именно так ломалось окно категорий: строка кнопок в шапке
+ * анимируется через transform, и окно оказывалось зажатым в ней.
+ *
+ * Портал решает это для всех модалок разом и на будущее: сколько бы анимаций
+ * и размытий ни появилось в интерфейсе, до <body> они не дотянутся.
  */
 
 interface ModalProps {
@@ -25,6 +35,11 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, description, children, footer }: ModalProps) {
+  // Портал нельзя строить на сервере: document там нет. Поэтому до
+  // монтирования компонент ничего не рисует.
+  const [isMounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Escape закрывает окно; фон не прокручивается, пока окно открыто.
   useEffect(() => {
     if (!open) return;
@@ -43,9 +58,9 @@ export function Modal({ open, onClose, title, description, children, footer }: M
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !isMounted) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
       role="dialog"
@@ -88,6 +103,7 @@ export function Modal({ open, onClose, title, description, children, footer }: M
           </footer>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

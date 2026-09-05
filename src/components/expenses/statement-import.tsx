@@ -1,10 +1,10 @@
 "use client";
 
-import { AlertTriangle, Check, FileUp, Loader2, Upload } from "lucide-react";
+import { AlertTriangle, CalendarX, Check, FileUp, Loader2, Upload } from "lucide-react";
 import { useMemo, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Field, Select } from "@/components/ui/field";
+import { Field, Select, TextInput } from "@/components/ui/field";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { importExpenses, type ImportOutcome } from "@/lib/actions/import";
 import { decodeFile, detectDelimiter, parseCsv } from "@/lib/import/csv";
@@ -59,6 +59,9 @@ export function StatementImport({ categories }: StatementImportProps) {
     category: -1,
   });
   const [treatAllAsExpense, setTreatAllAsExpense] = useState(false);
+  // Нижняя граница периода: в выписке часто есть операции, уже занесённые
+  // раньше руками, и переносить их заново незачем.
+  const [fromDate, setFromDate] = useState("");
   const [rowStates, setRowStates] = useState<Record<number, RowState>>({});
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
@@ -78,12 +81,29 @@ export function StatementImport({ categories }: StatementImportProps) {
     return buildStatementRows(table, headerIndex, columns, categories, treatAllAsExpense);
   }, [pdfParsed, table, headerIndex, columns, categories, treatAllAsExpense]);
 
-  const expenseRows = useMemo(
+  const allExpenseRows = useMemo(
     () => parsed?.rows.filter((row) => row.isExpense) ?? [],
     [parsed],
   );
 
-  const incomeCount = (parsed?.rows.length ?? 0) - expenseRows.length;
+  // Даты в формате YYYY-MM-DD сравниваются как строки — отдельный разбор
+  // в Date здесь не нужен.
+  const expenseRows = useMemo(
+    () => (fromDate ? allExpenseRows.filter((row) => row.date >= fromDate) : allExpenseRows),
+    [allExpenseRows, fromDate],
+  );
+
+  const hiddenByDate = allExpenseRows.length - expenseRows.length;
+  const incomeCount = (parsed?.rows.length ?? 0) - allExpenseRows.length;
+
+  /** Самая ранняя операция в файле — подсказка, с чего начинается выписка. */
+  const earliestDate = useMemo(
+    () => allExpenseRows.reduce<string | null>(
+      (min, row) => (min === null || row.date < min ? row.date : min),
+      null,
+    ),
+    [allExpenseRows],
+  );
 
   /** Категория строки: ручной выбор -> угаданная -> запасная. */
   function categoryFor(line: number, guessed: string | null): string {
@@ -334,7 +354,9 @@ export function StatementImport({ categories }: StatementImportProps) {
               title="Что будет добавлено"
               description={
                 expenseRows.length === 0
-                  ? "Списаний не нашлось — проверьте колонку с суммой"
+                  ? hiddenByDate > 0
+                    ? "Все операции раньше выбранной даты"
+                    : "Списаний не нашлось — проверьте колонку с суммой"
                   : `${selectedRows.length} из ${expenseRows.length} ${pluralize(
                       expenseRows.length,
                       "строки",
@@ -355,6 +377,42 @@ export function StatementImport({ categories }: StatementImportProps) {
                 ) : undefined
               }
             />
+
+            {/* Нижняя граница периода */}
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <Field
+                label="Переносить с даты"
+                className="w-[170px]"
+                hint={
+                  earliestDate
+                    ? `выписка с ${formatDayMonthShort(earliestDate)}`
+                    : "пусто — все операции"
+                }
+              >
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type="date"
+                    value={fromDate}
+                    min={earliestDate ?? undefined}
+                    onChange={(event) => setFromDate(event.target.value)}
+                  />
+                )}
+              </Field>
+
+              {fromDate ? (
+                <Button size="sm" variant="ghost" onClick={() => setFromDate("")}>
+                  <CalendarX size={15} />
+                  Снять ограничение
+                </Button>
+              ) : null}
+            </div>
+
+            {hiddenByDate > 0 ? (
+              <p className="mt-2 text-[12px] text-ink-faint">
+                Скрыто операций раньше выбранной даты: {hiddenByDate}.
+              </p>
+            ) : null}
 
             {incomeCount > 0 || parsed.skipped > 0 ? (
               <p className="mt-3 text-[12px] text-ink-faint">
