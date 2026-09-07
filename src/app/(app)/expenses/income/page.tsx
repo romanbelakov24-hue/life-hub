@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { IncomeManager } from "@/components/expenses/income-manager";
+import { requireUser } from "@/lib/auth/user";
 import { listIncomesInRange, sumIncomesInRange } from "@/lib/queries/income";
 import { endOfMonth, formatMonthTitle, startOfMonth, todayIso } from "@/lib/utils/date";
 
@@ -14,13 +15,14 @@ export const metadata: Metadata = { title: "Доходы" };
 export const dynamic = "force-dynamic";
 
 export default async function IncomePage() {
+  const user = await requireUser();
   const today = todayIso();
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
 
   const [incomes, total] = await Promise.all([
-    listIncomesInRange(monthStart, monthEnd),
-    sumIncomesInRange(monthStart, monthEnd),
+    listIncomesInRange(user.id, monthStart, monthEnd),
+    sumIncomesInRange(user.id, monthStart, monthEnd),
   ]);
 
   return (

@@ -6,14 +6,18 @@ import type { Income, IsoDate } from "@/lib/types";
 
 /** Чтение доходов. Как и в остальных queries — только выборки, без логики. */
 
-export async function listIncomesInRange(from: IsoDate, to: IsoDate): Promise<Income[]> {
+export async function listIncomesInRange(
+  userId: string,
+  from: IsoDate,
+  to: IsoDate,
+): Promise<Income[]> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT id, date, amount, source, created_at
             FROM incomes
-           WHERE date BETWEEN ? AND ?
+           WHERE user_id = ? AND date BETWEEN ? AND ?
            ORDER BY date DESC, created_at DESC`,
-    args: [from, to],
+    args: [userId, from, to],
   });
 
   return result.rows.map((row) => ({
@@ -25,13 +29,17 @@ export async function listIncomesInRange(from: IsoDate, to: IsoDate): Promise<In
   }));
 }
 
-export async function sumIncomesInRange(from: IsoDate, to: IsoDate): Promise<number> {
+export async function sumIncomesInRange(
+  userId: string,
+  from: IsoDate,
+  to: IsoDate,
+): Promise<number> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT COALESCE(SUM(amount), 0) AS total
             FROM incomes
-           WHERE date BETWEEN ? AND ?`,
-    args: [from, to],
+           WHERE user_id = ? AND date BETWEEN ? AND ?`,
+    args: [userId, from, to],
   });
 
   const row = result.rows[0];
@@ -46,6 +54,7 @@ export async function sumIncomesInRange(from: IsoDate, to: IsoDate): Promise<num
  * Берём последние `monthsBack` месяцев, где траты вообще были.
  */
 export async function getHistoricalDailyRate(
+  userId: string,
   beforeMonthKey: string,
   monthsBack = 3,
 ): Promise<number | null> {
@@ -56,11 +65,11 @@ export async function getHistoricalDailyRate(
                  SUM(amount)        AS total,
                  COUNT(DISTINCT date) AS days
             FROM expenses
-           WHERE substr(date, 1, 7) < ?
+           WHERE user_id = ? AND substr(date, 1, 7) < ?
            GROUP BY month_key
            ORDER BY month_key DESC
            LIMIT ?`,
-    args: [beforeMonthKey, monthsBack],
+    args: [userId, beforeMonthKey, monthsBack],
   });
 
   if (result.rows.length === 0) return null;

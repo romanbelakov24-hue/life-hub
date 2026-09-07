@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { NotesBoard } from "@/components/study/notes-board";
+import { requireUser } from "@/lib/auth/user";
 import { listNotes, listSubjects } from "@/lib/queries/study";
 import { todayIso } from "@/lib/utils/date";
 import { pluralize } from "@/lib/utils/format";
@@ -13,9 +14,10 @@ export const metadata: Metadata = { title: "Заметки" };
 export const dynamic = "force-dynamic";
 
 export default async function NotesPage() {
+  const user = await requireUser();
   const today = todayIso();
 
-  const [notes, subjects] = await Promise.all([listNotes(), listSubjects()]);
+  const [notes, subjects] = await Promise.all([listNotes(user.id), listSubjects(user.id)]);
 
   return (
     <>

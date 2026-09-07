@@ -1,7 +1,6 @@
 import { db } from "@/lib/db/client";
-import { HEALTH_TOKEN_KEY, getSetting } from "@/lib/queries/settings";
+import { HEALTH_TOKEN_KEY, findUserIdByToken } from "@/lib/queries/settings";
 import { isValidIso, todayIso } from "@/lib/utils/date";
-import { safeEqual } from "@/lib/utils/token";
 
 /**
  * Приём показателей здоровья: `POST /api/health/<токен>`
@@ -52,10 +51,9 @@ export async function POST(
 ) {
   const { token } = await params;
 
-  const expected = await getSetting(HEALTH_TOKEN_KEY);
-
   // 404, а не 401: неверный токен не должен подтверждать, что адрес существует.
-  if (!expected || !safeEqual(token, expected)) {
+  const userId = await findUserIdByToken(HEALTH_TOKEN_KEY, token);
+  if (!userId) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -88,14 +86,14 @@ export async function POST(
   // старое, отсутствующее — не трогает. Так одна автоматизация про шаги не
   // затирает сон, записанный другой автоматизацией часом раньше.
   await client.execute({
-    sql: `INSERT INTO health_daily (date, steps, sleep_minutes, resting_heart_rate, updated_at)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(date) DO UPDATE SET
+    sql: `INSERT INTO health_daily (user_id, date, steps, sleep_minutes, resting_heart_rate, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, date) DO UPDATE SET
             steps              = COALESCE(excluded.steps, health_daily.steps),
             sleep_minutes      = COALESCE(excluded.sleep_minutes, health_daily.sleep_minutes),
             resting_heart_rate = COALESCE(excluded.resting_heart_rate, health_daily.resting_heart_rate),
             updated_at         = excluded.updated_at`,
-    args: [date, steps, sleepMinutes, restingHeartRate, new Date().toISOString()],
+    args: [userId, date, steps, sleepMinutes, restingHeartRate, new Date().toISOString()],
   });
 
   return Response.json({ ok: true, date, steps, sleepMinutes, restingHeartRate });

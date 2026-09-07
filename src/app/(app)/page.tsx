@@ -3,6 +3,7 @@ import { MoneyCard } from "@/components/overview/money-card";
 import { NotesCard } from "@/components/overview/notes-card";
 import { TasksCard } from "@/components/overview/tasks-card";
 import { TodayCard } from "@/components/overview/today-card";
+import { requireUser } from "@/lib/auth/user";
 import { buildCategoryBreakdown, sumExpenses } from "@/lib/analytics/expenses";
 import { listExpensesInRange, listRecentExpenses, sumExpensesInRange } from "@/lib/queries/expenses";
 import {
@@ -34,6 +35,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
+  const user = await requireUser();
   const today = todayIso();
   const todayWeekday = weekdayOf(today);
   const monthStart = startOfMonth(today);
@@ -48,14 +50,14 @@ export default async function OverviewPage() {
     taskCounters,
     recentNotes,
   ] = await Promise.all([
-    listExpensesInRange(monthStart, monthEnd),
-    sumExpensesInRange(today, today),
-    listRecentExpenses(4),
-    listScheduleForWeekday(todayWeekday),
+    listExpensesInRange(user.id, monthStart, monthEnd),
+    sumExpensesInRange(user.id, today, today),
+    listRecentExpenses(user.id, 4),
+    listScheduleForWeekday(user.id, todayWeekday),
     // «Ближайшие» — всё, что просрочено, плюс горизонт в неделю вперёд.
-    listTasksDueBy(addDays(today, 7), 5),
-    getTaskCounters(today),
-    listRecentNotes(4),
+    listTasksDueBy(user.id, addDays(today, 7), 5),
+    getTaskCounters(user.id, today),
+    listRecentNotes(user.id, 4),
   ]);
 
   return (

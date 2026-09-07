@@ -53,7 +53,17 @@ async function createDbClient(): Promise<Client> {
 
   // В разработке — локальный SQLite-файл: данные не синхронизируются между
   // устройствами, но приложение полностью работоспособно без учётной записи.
-  const { createClient } = await import("@libsql/client");
+  //
+  // Специфier собран из переменной, а не написан строкой: сборщик Cloudflare
+  // Workers (esbuild через OpenNext) статически находит literal-импорты и
+  // пытается включить их в бандл заранее — а node-сборка @libsql/client тянет
+  // зависимость, которая на Workers не резолвится (нет локальных файлов и
+  // смысла в этой ветке на серверлес-платформе вообще нет). Non-literal
+  // import — стандартный приём, чтобы бандлер оставил вызов как есть и не
+  // трогал этот путь при сборке; в реальности этот код выполняется только
+  // в `next dev`/`next start` на обычном Node.js.
+  const nodeOnlyPackage = "@libsql/client";
+  const { createClient } = await import(nodeOnlyPackage);
   return createClient({ url: "file:local.db" });
 }
 

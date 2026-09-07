@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Имя воркера на Cloudflare — часть адреса по умолчанию
+  // (<name>.<аккаунт>.workers.dev), пока не подключён свой домен.
+  "name": "life-hub",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  // nodejs_compat нужен и для node:crypto (пароли, токены сессий), и для
+  // самого OpenNext-адаптера.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+  // KV для кэша инкрементальной сборки Next намеренно не подключён: у
+  // приложения нет ISR — почти каждая страница объявлена force-dynamic
+  // (данные меняются после каждой записи), кэшировать в этой схеме нечего.
+}

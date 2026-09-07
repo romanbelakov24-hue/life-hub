@@ -4,10 +4,14 @@
  * Приложение создаёт схему само при первом запросе, поэтому скрипт нужен
  * в двух случаях:
  *   • подготовить свежую базу Turso до первого деплоя;
- *   • применить ALTER_STATEMENTS после того, как в схему добавили колонку.
+ *   • применить ALTER_STATEMENTS / POST_ALTER_STATEMENTS после изменения схемы.
  *
  * Запускается через tsx с загрузкой .env.local, чтобы видеть те же переменные,
  * что и Next.js.
+ *
+ * ⚠️ POST_ALTER_STATEMENTS (многопользовательский режим) ломает старый код —
+ * см. предупреждение в db/schema.ts. Запускать этот скрипт на проде можно
+ * только вместе с деплоем новой версии приложения, не раньше и не позже.
  */
 
 import { createClient } from "@libsql/client";
@@ -75,10 +79,30 @@ async function main(): Promise<void> {
     console.log(`Новых колонок добавлено: ${appliedAlters}.`);
   }
 
-  // Индексы, которым нужны только что добавленные колонки.
+  // Индексы и пересборки таблиц, которым нужны только что добавленные колонки.
+  //
+  // Через client.migrate(), а не client.batch(): часть этих операций пересоздаёт
+  // categories, на которую ссылается внешний ключ expenses.category_id — обычный
+  // batch() выполняет свои операторы внутри одной транзакции, а SQLite проверяет
+  // внешние ключи и внутри неё, так что DROP TABLE упал бы с
+  // SQLITE_CONSTRAINT_FOREIGNKEY. migrate() — недокументированный, но реально
+  // существующий метод клиента (используется им самим для той же задачи
+  // внутри пакета): он отключает проверку внешних ключей на время операций и
+  // включает её обратно. Прямо протестировано против локальной и настоящей
+  // Turso-базы перед тем, как полагаться на него здесь.
   if (POST_ALTER_STATEMENTS.length > 0) {
-    await client.batch(POST_ALTER_STATEMENTS, "write");
-    console.log(`Индексов после ALTER: ${POST_ALTER_STATEMENTS.length}.`);
+    const migratableClient = client as unknown as {
+      migrate: (statements: string[]) => Promise<unknown>;
+    };
+    if (typeof migratableClient.migrate !== "function") {
+      throw new Error(
+        "client.migrate() недоступен в этой версии @libsql/client — " +
+          "POST_ALTER_STATEMENTS пересобирают таблицы со внешними ключами " +
+          "и не могут идти через обычный batch().",
+      );
+    }
+    await migratableClient.migrate(POST_ALTER_STATEMENTS);
+    console.log(`Операций после ALTER: ${POST_ALTER_STATEMENTS.length}.`);
   }
 
   await client.batch(SEED_STATEMENTS, "write");

@@ -1,7 +1,6 @@
 import { buildCalendar } from "@/lib/calendar/ics";
 import { listScheduleSlots, listTasks } from "@/lib/queries/study";
-import { CALENDAR_TOKEN_KEY, getSetting } from "@/lib/queries/settings";
-import { safeEqual } from "@/lib/utils/token";
+import { CALENDAR_TOKEN_KEY, findUserIdByToken } from "@/lib/queries/settings";
 
 /**
  * Календарная лента: `/api/calendar/<токен>.ics`
@@ -28,14 +27,13 @@ export async function GET(
   // Некоторые клиенты определяют формат по расширению — принимаем оба вида.
   const token = rawToken.replace(/\.ics$/i, "");
 
-  const expected = await getSetting(CALENDAR_TOKEN_KEY);
-
   // 404, а не 403: неверный токен не должен подтверждать, что лента существует.
-  if (!expected || !safeEqual(token, expected)) {
+  const userId = await findUserIdByToken(CALENDAR_TOKEN_KEY, token);
+  if (!userId) {
     return new Response("Not found", { status: 404 });
   }
 
-  const [slots, tasks] = await Promise.all([listScheduleSlots(), listTasks()]);
+  const [slots, tasks] = await Promise.all([listScheduleSlots(userId), listTasks(userId)]);
   const body = buildCalendar({ slots, tasks });
 
   return new Response(body, {

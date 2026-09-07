@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { ScheduleGrid } from "@/components/study/schedule-grid";
+import { requireUser } from "@/lib/auth/user";
 import { listScheduleSlots } from "@/lib/queries/study";
 import { todayIso, weekdayOf, WEEKDAY_NAMES } from "@/lib/utils/date";
 
@@ -15,9 +16,10 @@ export const metadata: Metadata = { title: "Расписание" };
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage() {
+  const user = await requireUser();
   const today = todayIso();
   const todayWeekday = weekdayOf(today);
-  const slots = await listScheduleSlots();
+  const slots = await listScheduleSlots(user.id);
 
   return (
     <>

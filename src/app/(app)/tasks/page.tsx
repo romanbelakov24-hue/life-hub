@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { TasksView } from "@/components/study/tasks-view";
+import { requireUser } from "@/lib/auth/user";
 import { getTaskCounters, listSubjects, listTasks } from "@/lib/queries/study";
 import { todayIso } from "@/lib/utils/date";
 import { pluralize } from "@/lib/utils/format";
@@ -16,12 +17,13 @@ export const metadata: Metadata = { title: "Задачи" };
 export const dynamic = "force-dynamic";
 
 export default async function TasksPage() {
+  const user = await requireUser();
   const today = todayIso();
 
   const [tasks, subjects, counters] = await Promise.all([
-    listTasks(),
-    listSubjects(),
-    getTaskCounters(today),
+    listTasks(user.id),
+    listSubjects(user.id),
+    getTaskCounters(user.id, today),
   ]);
 
   // Три разных состояния: задач нет вовсе, все закрыты, есть открытые.

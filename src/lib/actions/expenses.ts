@@ -44,7 +44,7 @@ function validateExpense(input: ExpenseInput): string | null {
 // ─── Траты ───────────────────────────────────────────────────────────────────
 
 export async function createExpense(input: ExpenseInput): Promise<ActionResult<{ id: string }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateExpense(input);
     if (error) return failure(error);
 
@@ -52,8 +52,8 @@ export async function createExpense(input: ExpenseInput): Promise<ActionResult<{
     const id = createId("exp");
 
     await client.execute({
-      sql: `INSERT INTO expenses (id, date, category_id, note, amount, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO expenses (id, date, category_id, note, amount, created_at, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         input.date,
@@ -61,6 +61,7 @@ export async function createExpense(input: ExpenseInput): Promise<ActionResult<{
         input.note.trim(),
         roundTo(input.amount, 2),
         new Date().toISOString(),
+        userId,
       ],
     });
 
@@ -73,7 +74,7 @@ export async function updateExpense(
   id: string,
   input: ExpenseInput,
 ): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateExpense(input);
     if (error) return failure(error);
 
@@ -81,8 +82,8 @@ export async function updateExpense(
     const result = await client.execute({
       sql: `UPDATE expenses
                SET date = ?, category_id = ?, note = ?, amount = ?
-             WHERE id = ?`,
-      args: [input.date, input.categoryId, input.note.trim(), roundTo(input.amount, 2), id],
+             WHERE id = ? AND user_id = ?`,
+      args: [input.date, input.categoryId, input.note.trim(), roundTo(input.amount, 2), id, userId],
     });
 
     if (result.rowsAffected === 0) return failure("Запись не найдена.");
@@ -93,9 +94,12 @@ export async function updateExpense(
 }
 
 export async function deleteExpense(id: string): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
-    await client.execute({ sql: `DELETE FROM expenses WHERE id = ?`, args: [id] });
+    await client.execute({
+      sql: `DELETE FROM expenses WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
+    });
 
     revalidateExpenseViews();
     return success(null);
@@ -121,26 +125,26 @@ function validateCategory(input: CategoryInput): string | null {
 export async function createCategory(
   input: CategoryInput,
 ): Promise<ActionResult<{ id: string }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateCategory(input);
     if (error) return failure(error);
 
     const client = await db();
     const name = input.name.trim();
 
-    // UNIQUE-констрейнт по имени поймал бы дубль и сам, но так пользователь
-    // видит понятное сообщение вместо ошибки базы.
+    // UNIQUE-индекс по (user_id, name) поймал бы дубль и сам, но так
+    // пользователь видит понятное сообщение вместо ошибки базы.
     const duplicate = await client.execute({
-      sql: `SELECT id FROM categories WHERE lower(name) = lower(?)`,
-      args: [name],
+      sql: `SELECT id FROM categories WHERE user_id = ? AND lower(name) = lower(?)`,
+      args: [userId, name],
     });
     if (duplicate.rows.length > 0) return failure("Категория с таким названием уже есть.");
 
     const id = createId("cat");
     await client.execute({
-      sql: `INSERT INTO categories (id, name, color, icon, is_default, sort_order)
-            VALUES (?, ?, ?, ?, 0, 100)`,
-      args: [id, name, input.color, input.icon],
+      sql: `INSERT INTO categories (id, user_id, name, color, icon, is_default, sort_order)
+            VALUES (?, ?, ?, ?, ?, 0, 100)`,
+      args: [id, userId, name, input.color, input.icon],
     });
 
     revalidateExpenseViews();
@@ -152,14 +156,14 @@ export async function updateCategory(
   id: string,
   input: CategoryInput,
 ): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateCategory(input);
     if (error) return failure(error);
 
     const client = await db();
     const result = await client.execute({
-      sql: `UPDATE categories SET name = ?, color = ?, icon = ? WHERE id = ?`,
-      args: [input.name.trim(), input.color, input.icon, id],
+      sql: `UPDATE categories SET name = ?, color = ?, icon = ? WHERE id = ? AND user_id = ?`,
+      args: [input.name.trim(), input.color, input.icon, id, userId],
     });
 
     if (result.rowsAffected === 0) return failure("Категория не найдена.");
@@ -175,23 +179,26 @@ export async function updateCategory(
  * привязку. Пользователю предлагается сначала перенести траты.
  */
 export async function deleteCategory(id: string): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
 
     const existing = await client.execute({
-      sql: `SELECT is_default FROM categories WHERE id = ?`,
-      args: [id],
+      sql: `SELECT is_default FROM categories WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
     });
     const row = existing.rows[0];
     if (!row) return failure("Категория не найдена.");
     if (Number(row.is_default) === 1) return failure("Базовую категорию нельзя удалить.");
 
-    const usage = await countExpensesByCategory(id);
+    const usage = await countExpensesByCategory(userId, id);
     if (usage > 0) {
       return failure(`В категории ${usage} записей. Сначала перенесите или удалите их.`);
     }
 
-    await client.execute({ sql: `DELETE FROM categories WHERE id = ?`, args: [id] });
+    await client.execute({
+      sql: `DELETE FROM categories WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
+    });
 
     revalidateExpenseViews();
     return success(null);

@@ -9,6 +9,8 @@ import type { IsoDate, Note, ScheduleSlot, Task, Weekday } from "@/lib/types";
 /**
  * Чтение данных учебного планера: расписание, заметки, задачи.
  * Как и в expenses.ts — только выборки, без бизнес-логики.
+ *
+ * Каждая функция принимает userId первым параметром и фильтрует им же.
  */
 
 // ─── Расписание ──────────────────────────────────────────────────────────────
@@ -28,26 +30,31 @@ function mapSlot(row: Row): ScheduleSlot {
 }
 
 /** Вся сетка расписания разом — она маленькая, пагинация не нужна. */
-export async function listScheduleSlots(): Promise<ScheduleSlot[]> {
+export async function listScheduleSlots(userId: string): Promise<ScheduleSlot[]> {
   const client = await db();
-  const result = await client.execute(
-    `SELECT id, weekday, pair_index, subject, room, teacher, start_time, end_time, color
-       FROM schedule_slots
-      ORDER BY weekday ASC, pair_index ASC`,
-  );
+  const result = await client.execute({
+    sql: `SELECT id, weekday, pair_index, subject, room, teacher, start_time, end_time, color
+            FROM schedule_slots
+           WHERE user_id = ?
+           ORDER BY weekday ASC, pair_index ASC`,
+    args: [userId],
+  });
 
   return result.rows.map(mapSlot);
 }
 
 /** Пары конкретного дня — для виджета «Сегодня» на обзоре. */
-export async function listScheduleForWeekday(weekday: Weekday): Promise<ScheduleSlot[]> {
+export async function listScheduleForWeekday(
+  userId: string,
+  weekday: Weekday,
+): Promise<ScheduleSlot[]> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT id, weekday, pair_index, subject, room, teacher, start_time, end_time, color
             FROM schedule_slots
-           WHERE weekday = ?
+           WHERE user_id = ? AND weekday = ?
            ORDER BY pair_index ASC`,
-    args: [weekday],
+    args: [userId, weekday],
   });
 
   return result.rows.map(mapSlot);
@@ -58,14 +65,15 @@ export async function listScheduleForWeekday(weekday: Weekday): Promise<Schedule
  * Используются как подсказки при привязке заметок и задач к предмету —
  * чтобы не приходилось каждый раз печатать название вручную.
  */
-export async function listSubjects(): Promise<string[]> {
+export async function listSubjects(userId: string): Promise<string[]> {
   const client = await db();
-  const result = await client.execute(
-    `SELECT DISTINCT subject
-       FROM schedule_slots
-      WHERE subject <> ''
-      ORDER BY subject ASC`,
-  );
+  const result = await client.execute({
+    sql: `SELECT DISTINCT subject
+            FROM schedule_slots
+           WHERE user_id = ? AND subject <> ''
+           ORDER BY subject ASC`,
+    args: [userId],
+  });
 
   return result.rows.map((row) => str(row, "subject"));
 }
@@ -85,34 +93,37 @@ function mapNote(row: Row): Note {
 }
 
 /** Заметки, опционально отфильтрованные по предмету. */
-export async function listNotes(subject?: string): Promise<Note[]> {
+export async function listNotes(userId: string, subject?: string): Promise<Note[]> {
   const client = await db();
 
   const result = subject
     ? await client.execute({
         sql: `SELECT id, title, body, date, subject, created_at, updated_at
                 FROM notes
-               WHERE subject = ?
+               WHERE user_id = ? AND subject = ?
                ORDER BY date DESC, created_at DESC`,
-        args: [subject],
+        args: [userId, subject],
       })
-    : await client.execute(
-        `SELECT id, title, body, date, subject, created_at, updated_at
-           FROM notes
-          ORDER BY date DESC, created_at DESC`,
-      );
+    : await client.execute({
+        sql: `SELECT id, title, body, date, subject, created_at, updated_at
+                FROM notes
+               WHERE user_id = ?
+               ORDER BY date DESC, created_at DESC`,
+        args: [userId],
+      });
 
   return result.rows.map(mapNote);
 }
 
-export async function listRecentNotes(limit = 3): Promise<Note[]> {
+export async function listRecentNotes(userId: string, limit = 3): Promise<Note[]> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT id, title, body, date, subject, created_at, updated_at
             FROM notes
+           WHERE user_id = ?
            ORDER BY updated_at DESC
            LIMIT ?`,
-    args: [limit],
+    args: [userId, limit],
   });
 
   return result.rows.map(mapNote);
@@ -147,28 +158,34 @@ const TASK_SELECT = `
  * задачи без срока уходят в конец (пустая строка сортируется первой,
  * поэтому явно переносим её вниз через CASE).
  */
-export async function listTasks(): Promise<Task[]> {
+export async function listTasks(userId: string): Promise<Task[]> {
   const client = await db();
-  const result = await client.execute(
-    `${TASK_SELECT}
-      ORDER BY done ASC,
-               CASE WHEN due_date = '' THEN 1 ELSE 0 END ASC,
-               due_date ASC,
-               created_at DESC`,
-  );
+  const result = await client.execute({
+    sql: `${TASK_SELECT}
+           WHERE user_id = ?
+           ORDER BY done ASC,
+                    CASE WHEN due_date = '' THEN 1 ELSE 0 END ASC,
+                    due_date ASC,
+                    created_at DESC`,
+    args: [userId],
+  });
 
   return result.rows.map(mapTask);
 }
 
 /** Невыполненные задачи с дедлайном не позже указанной даты — виджет обзора. */
-export async function listTasksDueBy(date: IsoDate, limit = 5): Promise<Task[]> {
+export async function listTasksDueBy(
+  userId: string,
+  date: IsoDate,
+  limit = 5,
+): Promise<Task[]> {
   const client = await db();
   const result = await client.execute({
     sql: `${TASK_SELECT}
-           WHERE done = 0 AND due_date <> '' AND due_date <= ?
+           WHERE user_id = ? AND done = 0 AND due_date <> '' AND due_date <= ?
            ORDER BY due_date ASC
            LIMIT ?`,
-    args: [date, limit],
+    args: [userId, date, limit],
   });
 
   return result.rows.map(mapTask);
@@ -176,6 +193,7 @@ export async function listTasksDueBy(date: IsoDate, limit = 5): Promise<Task[]> 
 
 /** Счётчики для сводки: сколько всего открыто и сколько просрочено. */
 export async function getTaskCounters(
+  userId: string,
   today: IsoDate,
 ): Promise<{ open: number; overdue: number; doneToday: number }> {
   const client = await db();
@@ -186,8 +204,9 @@ export async function getTaskCounters(
                      THEN 1 ELSE 0 END)               AS overdue_count,
             SUM(CASE WHEN done = 1 AND substr(completed_at, 1, 10) = ?
                      THEN 1 ELSE 0 END)               AS done_today_count
-          FROM tasks`,
-    args: [today, today],
+          FROM tasks
+         WHERE user_id = ?`,
+    args: [today, today, userId],
   });
 
   const row = result.rows[0];

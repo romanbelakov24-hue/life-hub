@@ -20,8 +20,8 @@ import {
  * адрес куда-то утёк.
  */
 export async function regenerateCalendarToken(): Promise<ActionResult<{ token: string }>> {
-  return guard(async () => {
-    const token = await rotateCalendarToken();
+  return guard(async (userId) => {
+    const token = await rotateCalendarToken(userId);
     if (!token) return failure("Не удалось выпустить новый адрес.");
 
     revalidatePath("/settings");
@@ -37,8 +37,8 @@ export async function regenerateCalendarToken(): Promise<ActionResult<{ token: s
  * потом новый адрес.
  */
 export async function toggleShareSummary(enabled: boolean): Promise<ActionResult<null>> {
-  return guard(async () => {
-    await setShareEnabled(enabled);
+  return guard(async (userId) => {
+    await setShareEnabled(userId, enabled);
 
     revalidatePath("/settings");
     return success(null);
@@ -47,8 +47,8 @@ export async function toggleShareSummary(enabled: boolean): Promise<ActionResult
 
 /** Выпускает новый адрес сводки. Все разосланные ссылки перестают работать. */
 export async function regenerateShareToken(): Promise<ActionResult<{ token: string }>> {
-  return guard(async () => {
-    const token = await rotateShareToken();
+  return guard(async (userId) => {
+    const token = await rotateShareToken(userId);
     if (!token) return failure("Не удалось выпустить новый адрес.");
 
     revalidatePath("/settings");
@@ -64,8 +64,8 @@ export async function regenerateShareToken(): Promise<ActionResult<{ token: stri
  * скриншот или в переписку).
  */
 export async function regenerateHealthToken(): Promise<ActionResult<{ token: string }>> {
-  return guard(async () => {
-    const token = await rotateHealthToken();
+  return guard(async (userId) => {
+    const token = await rotateHealthToken(userId);
     if (!token) return failure("Не удалось выпустить новый адрес.");
 
     revalidatePath("/health");

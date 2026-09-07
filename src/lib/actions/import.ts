@@ -53,7 +53,7 @@ function buildImportKey(row: ImportRow): string {
 export async function importExpenses(
   rows: ImportRow[],
 ): Promise<ActionResult<ImportOutcome>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     if (rows.length === 0) return failure("Нечего импортировать.");
     if (rows.length > MAX_ROWS) {
       return failure(`За один раз можно импортировать не больше ${MAX_ROWS} строк.`);
@@ -79,13 +79,13 @@ export async function importExpenses(
       if (!uniqueByKey.has(key)) uniqueByKey.set(key, row);
     }
 
-    // Какие ключи уже есть в базе. Ограничиваемся диапазоном дат файла, чтобы
-    // не вычитывать всю таблицу.
+    // Какие ключи уже есть в базе у ЭТОГО пользователя. Ограничиваемся
+    // диапазоном дат файла, чтобы не вычитывать всю таблицу.
     const dates = rows.map((row) => row.date).sort();
     const existing = await client.execute({
       sql: `SELECT import_key FROM expenses
-             WHERE import_key <> '' AND date BETWEEN ? AND ?`,
-      args: [dates[0] ?? "", dates[dates.length - 1] ?? ""],
+             WHERE user_id = ? AND import_key <> '' AND date BETWEEN ? AND ?`,
+      args: [userId, dates[0] ?? "", dates[dates.length - 1] ?? ""],
     });
 
     const alreadyImported = new Set(existing.rows.map((row) => str(row, "import_key")));
@@ -104,8 +104,8 @@ export async function importExpenses(
     await client.batch(
       toInsert.map(([key, row]) => ({
         sql: `INSERT INTO expenses
-                (id, date, category_id, note, amount, created_at, import_key)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                (id, date, category_id, note, amount, created_at, import_key, user_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           createId("exp"),
           row.date,
@@ -114,6 +114,7 @@ export async function importExpenses(
           roundTo(row.amount, 2),
           now,
           key,
+          userId,
         ],
       })),
       "write",

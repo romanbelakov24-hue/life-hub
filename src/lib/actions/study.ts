@@ -52,13 +52,13 @@ function validateSlot(input: ScheduleSlotInput): string | null {
 
 /**
  * Создаёт или перезаписывает пару в ячейке (день × номер пары).
- * Ячейка уникальна, поэтому используем UPSERT: повторное сохранение той же
- * ячейки не плодит дубли, а обновляет содержимое.
+ * Ячейка уникальна в пределах пользователя, поэтому используем UPSERT:
+ * повторное сохранение той же ячейки не плодит дубли, а обновляет содержимое.
  */
 export async function saveScheduleSlot(
   input: ScheduleSlotInput,
 ): Promise<ActionResult<{ id: string }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateSlot(input);
     if (error) return failure(error);
 
@@ -67,9 +67,9 @@ export async function saveScheduleSlot(
 
     await client.execute({
       sql: `INSERT INTO schedule_slots
-              (id, weekday, pair_index, subject, room, teacher, start_time, end_time, color)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(weekday, pair_index) DO UPDATE SET
+              (id, user_id, weekday, pair_index, subject, room, teacher, start_time, end_time, color)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, weekday, pair_index) DO UPDATE SET
               subject    = excluded.subject,
               room       = excluded.room,
               teacher    = excluded.teacher,
@@ -78,6 +78,7 @@ export async function saveScheduleSlot(
               color      = excluded.color`,
       args: [
         id,
+        userId,
         input.weekday,
         input.pairIndex,
         input.subject.trim(),
@@ -95,9 +96,12 @@ export async function saveScheduleSlot(
 }
 
 export async function deleteScheduleSlot(id: string): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
-    await client.execute({ sql: `DELETE FROM schedule_slots WHERE id = ?`, args: [id] });
+    await client.execute({
+      sql: `DELETE FROM schedule_slots WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
+    });
 
     revalidateStudyViews();
     return success(null);
@@ -106,11 +110,11 @@ export async function deleteScheduleSlot(id: string): Promise<ActionResult<null>
 
 /** Очистка всего дня целиком — быстрее, чем удалять пары по одной. */
 export async function clearScheduleDay(weekday: Weekday): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
     await client.execute({
-      sql: `DELETE FROM schedule_slots WHERE weekday = ?`,
-      args: [weekday],
+      sql: `DELETE FROM schedule_slots WHERE weekday = ? AND user_id = ?`,
+      args: [weekday, userId],
     });
 
     revalidateStudyViews();
@@ -135,7 +139,7 @@ function validateNote(input: NoteInput): string | null {
 }
 
 export async function createNote(input: NoteInput): Promise<ActionResult<{ id: string }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateNote(input);
     if (error) return failure(error);
 
@@ -144,9 +148,18 @@ export async function createNote(input: NoteInput): Promise<ActionResult<{ id: s
     const now = new Date().toISOString();
 
     await client.execute({
-      sql: `INSERT INTO notes (id, title, body, date, subject, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [id, input.title.trim(), input.body.trim(), input.date, input.subject.trim(), now, now],
+      sql: `INSERT INTO notes (id, user_id, title, body, date, subject, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        userId,
+        input.title.trim(),
+        input.body.trim(),
+        input.date,
+        input.subject.trim(),
+        now,
+        now,
+      ],
     });
 
     revalidateStudyViews();
@@ -155,7 +168,7 @@ export async function createNote(input: NoteInput): Promise<ActionResult<{ id: s
 }
 
 export async function updateNote(id: string, input: NoteInput): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateNote(input);
     if (error) return failure(error);
 
@@ -163,7 +176,7 @@ export async function updateNote(id: string, input: NoteInput): Promise<ActionRe
     const result = await client.execute({
       sql: `UPDATE notes
                SET title = ?, body = ?, date = ?, subject = ?, updated_at = ?
-             WHERE id = ?`,
+             WHERE id = ? AND user_id = ?`,
       args: [
         input.title.trim(),
         input.body.trim(),
@@ -171,6 +184,7 @@ export async function updateNote(id: string, input: NoteInput): Promise<ActionRe
         input.subject.trim(),
         new Date().toISOString(),
         id,
+        userId,
       ],
     });
 
@@ -182,9 +196,12 @@ export async function updateNote(id: string, input: NoteInput): Promise<ActionRe
 }
 
 export async function deleteNote(id: string): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
-    await client.execute({ sql: `DELETE FROM notes WHERE id = ?`, args: [id] });
+    await client.execute({
+      sql: `DELETE FROM notes WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
+    });
 
     revalidateStudyViews();
     return success(null);
@@ -211,7 +228,7 @@ function validateTask(input: TaskInput): string | null {
 }
 
 export async function createTask(input: TaskInput): Promise<ActionResult<{ id: string }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateTask(input);
     if (error) return failure(error);
 
@@ -220,10 +237,11 @@ export async function createTask(input: TaskInput): Promise<ActionResult<{ id: s
 
     await client.execute({
       sql: `INSERT INTO tasks
-              (id, title, description, due_date, done, urgent, important, subject, created_at, completed_at)
-            VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, NULL)`,
+              (id, user_id, title, description, due_date, done, urgent, important, subject, created_at, completed_at)
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NULL)`,
       args: [
         id,
+        userId,
         input.title.trim(),
         input.description.trim(),
         input.dueDate,
@@ -240,7 +258,7 @@ export async function createTask(input: TaskInput): Promise<ActionResult<{ id: s
 }
 
 export async function updateTask(id: string, input: TaskInput): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateTask(input);
     if (error) return failure(error);
 
@@ -248,7 +266,7 @@ export async function updateTask(id: string, input: TaskInput): Promise<ActionRe
     const result = await client.execute({
       sql: `UPDATE tasks
                SET title = ?, description = ?, due_date = ?, urgent = ?, important = ?, subject = ?
-             WHERE id = ?`,
+             WHERE id = ? AND user_id = ?`,
       args: [
         input.title.trim(),
         input.description.trim(),
@@ -257,6 +275,7 @@ export async function updateTask(id: string, input: TaskInput): Promise<ActionRe
         input.important ? 1 : 0,
         input.subject.trim(),
         id,
+        userId,
       ],
     });
 
@@ -269,11 +288,11 @@ export async function updateTask(id: string, input: TaskInput): Promise<ActionRe
 
 /** Отметка «выполнено». Время выполнения нужно для счётчика «сделано сегодня». */
 export async function toggleTaskDone(id: string, done: boolean): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
     await client.execute({
-      sql: `UPDATE tasks SET done = ?, completed_at = ? WHERE id = ?`,
-      args: [done ? 1 : 0, done ? new Date().toISOString() : null, id],
+      sql: `UPDATE tasks SET done = ?, completed_at = ? WHERE id = ? AND user_id = ?`,
+      args: [done ? 1 : 0, done ? new Date().toISOString() : null, id, userId],
     });
 
     revalidateStudyViews();
@@ -287,11 +306,11 @@ export async function setTaskQuadrant(
   urgent: boolean,
   important: boolean,
 ): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
     await client.execute({
-      sql: `UPDATE tasks SET urgent = ?, important = ? WHERE id = ?`,
-      args: [urgent ? 1 : 0, important ? 1 : 0, id],
+      sql: `UPDATE tasks SET urgent = ?, important = ? WHERE id = ? AND user_id = ?`,
+      args: [urgent ? 1 : 0, important ? 1 : 0, id, userId],
     });
 
     revalidateStudyViews();
@@ -300,9 +319,12 @@ export async function setTaskQuadrant(
 }
 
 export async function deleteTask(id: string): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
-    await client.execute({ sql: `DELETE FROM tasks WHERE id = ?`, args: [id] });
+    await client.execute({
+      sql: `DELETE FROM tasks WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
+    });
 
     revalidateStudyViews();
     return success(null);
@@ -311,9 +333,12 @@ export async function deleteTask(id: string): Promise<ActionResult<null>> {
 
 /** Убрать все выполненные задачи разом. */
 export async function clearCompletedTasks(): Promise<ActionResult<{ removed: number }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
-    const result = await client.execute(`DELETE FROM tasks WHERE done = 1`);
+    const result = await client.execute({
+      sql: `DELETE FROM tasks WHERE done = 1 AND user_id = ?`,
+      args: [userId],
+    });
 
     revalidateStudyViews();
     return success({ removed: result.rowsAffected });

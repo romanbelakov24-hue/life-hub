@@ -29,6 +29,7 @@ import {
   sumExpensesInRange,
 } from "@/lib/queries/expenses";
 import { getHistoricalDailyRate, sumIncomesInRange } from "@/lib/queries/income";
+import { requireUser } from "@/lib/auth/user";
 import {
   addMonths,
   endOfMonth,
@@ -67,6 +68,7 @@ function resolveMonthAnchor(monthParam: string | undefined, today: string): stri
 }
 
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
+  const user = await requireUser();
   const params = await searchParams;
 
   const today = todayIso();
@@ -89,14 +91,14 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     monthIncome,
     historicalDailyRate,
   ] = await Promise.all([
-    listCategories(),
-    listExpensesInRange(monthStart, monthEnd),
-    sumExpensesInRange(startOfMonth(prevMonthAnchor), endOfMonth(prevMonthAnchor)),
-    sumExpensesInRange(today, today),
-    sumExpensesInRange(startOfWeek(today), endOfWeek(today)),
-    listMonthlyTotals(6),
-    sumIncomesInRange(monthStart, monthEnd),
-    getHistoricalDailyRate(monthKeyOf(monthAnchor)),
+    listCategories(user.id),
+    listExpensesInRange(user.id, monthStart, monthEnd),
+    sumExpensesInRange(user.id, startOfMonth(prevMonthAnchor), endOfMonth(prevMonthAnchor)),
+    sumExpensesInRange(user.id, today, today),
+    sumExpensesInRange(user.id, startOfWeek(today), endOfWeek(today)),
+    listMonthlyTotals(user.id, 6),
+    sumIncomesInRange(user.id, monthStart, monthEnd),
+    getHistoricalDailyRate(user.id, monthKeyOf(monthAnchor)),
   ]);
 
   const isCurrentMonth = monthKeyOf(monthAnchor) === monthKeyOf(today);

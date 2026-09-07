@@ -9,6 +9,13 @@
 /build
 next-env.d.ts
 
+# сборка и локальный запуск под Cloudflare Workers (OpenNext + Wrangler)
+/.open-next/
+/.wrangler/
+.dev.vars
+.dev.vars.*
+cloudflare-env.d.ts
+
 # локальная база данных (dev-режим без Turso)
 *.db
 *.db-journal

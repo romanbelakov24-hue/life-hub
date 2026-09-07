@@ -8,7 +8,7 @@ import {
   sumExpenses,
 } from "@/lib/analytics/expenses";
 import { listExpensesInRange, sumExpensesInRange } from "@/lib/queries/expenses";
-import { isShareEnabled, SHARE_TOKEN_KEY, getSetting } from "@/lib/queries/settings";
+import { isShareEnabled, SHARE_TOKEN_KEY, findUserIdByToken } from "@/lib/queries/settings";
 import {
   addMonths,
   endOfMonth,
@@ -18,7 +18,6 @@ import {
   todayIso,
 } from "@/lib/utils/date";
 import { roundTo } from "@/lib/utils/format";
-import { safeEqual } from "@/lib/utils/token";
 
 /**
  * Публичная сводка трат: `/s/<токен>`
@@ -47,15 +46,12 @@ export default async function SharedSummaryPage({
 }) {
   const { token } = await params;
 
-  const [expected, enabled] = await Promise.all([
-    getSetting(SHARE_TOKEN_KEY),
-    isShareEnabled(),
-  ]);
-
   // Выключенный доступ и неверный токен ведут себя одинаково — страницы просто
   // «не существует». Иначе по разнице ответов можно было бы понять, что адрес
   // угадан верно, а доступ временно закрыт.
-  if (!enabled || !expected || !safeEqual(token, expected)) {
+  const userId = await findUserIdByToken(SHARE_TOKEN_KEY, token);
+  const enabled = userId ? await isShareEnabled(userId) : false;
+  if (!userId || !enabled) {
     notFound();
   }
 
@@ -65,8 +61,8 @@ export default async function SharedSummaryPage({
   const prevMonth = addMonths(today, -1);
 
   const [expenses, prevTotal] = await Promise.all([
-    listExpensesInRange(monthStart, monthEnd),
-    sumExpensesInRange(startOfMonth(prevMonth), endOfMonth(prevMonth)),
+    listExpensesInRange(userId, monthStart, monthEnd),
+    sumExpensesInRange(userId, startOfMonth(prevMonth), endOfMonth(prevMonth)),
   ]);
 
   const total = sumExpenses(expenses);

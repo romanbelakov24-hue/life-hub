@@ -2,9 +2,10 @@ import "server-only";
 
 import { db } from "@/lib/db/client";
 import { str } from "@/lib/db/rows";
+import { safeEqual } from "@/lib/utils/token";
 
 /**
- * Настройки приложения — таблица ключ-значение.
+ * Настройки приложения — таблица ключ-значение, теперь на пользователя.
  *
  * Сюда попадает то, что не заслуживает отдельной таблицы: токен календарной
  * ленты, в будущем — параметры уведомлений. Значения хранятся строками;
@@ -23,24 +24,59 @@ export const SHARE_ENABLED_KEY = "share_summary_enabled";
 /** Ключ токена приёма данных здоровья от «Быстрых команд». */
 export const HEALTH_TOKEN_KEY = "health_import_token";
 
-export async function getSetting(key: string): Promise<string | null> {
+export async function getSetting(userId: string, key: string): Promise<string | null> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT value FROM settings WHERE key = ?`,
-    args: [key],
+    sql: `SELECT value FROM settings WHERE user_id = ? AND key = ?`,
+    args: [userId, key],
   });
 
   const row = result.rows[0];
   return row ? str(row, "value") : null;
 }
 
-export async function setSetting(key: string, value: string): Promise<void> {
+export async function setSetting(userId: string, key: string, value: string): Promise<void> {
   const client = await db();
   await client.execute({
-    sql: `INSERT INTO settings (key, value) VALUES (?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    args: [key, value],
+    sql: `INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)
+          ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`,
+    args: [userId, key, value],
   });
+}
+
+/**
+ * Находит владельца токена среди всех настроек с данным ключом.
+ *
+ * Публичные роуты (лента календаря, вебхук здоровья, страница-сводка) не
+ * знают заранее, чей это токен — сравнение с одним ожидаемым значением, как
+ * было в однопользовательском режиме, здесь не подходит. Строк с одним ключом
+ * (`calendar_feed_token` и т.п.) ровно столько, сколько пользователей — на
+ * масштабе личного приложения это единицы, полный перебор с сравнением за
+ * постоянное время (safeEqual) на каждую строку не медленнее и не хуже с точки
+ * зрения тайминг-атак, чем один SELECT ... WHERE value = ?, зато не сравнивает
+ * секрет через некостантное время в самой базе.
+ */
+export async function findUserIdByToken(key: string, token: string): Promise<string | null> {
+  if (!token) return null;
+
+  const client = await db();
+  const result = await client.execute({
+    sql: `SELECT user_id, value FROM settings WHERE key = ?`,
+    args: [key],
+  });
+
+  for (const row of result.rows) {
+    if (safeEqual(str(row, "value"), token)) {
+      return str(row, "user_id") || null;
+    }
+  }
+
+  return null;
+}
+
+/** 32 hex-символа — 128 бит случайности, перебором не находится. */
+function createFeedToken(): string {
+  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "").slice(0, 32);
 }
 
 /**
@@ -51,24 +87,19 @@ export async function setSetting(key: string, value: string): Promise<void> {
  * (и тем самым отозвать все существующие подписки) можно через
  * `rotateCalendarToken`.
  */
-export async function getOrCreateCalendarToken(): Promise<string> {
-  const existing = await getSetting(CALENDAR_TOKEN_KEY);
+export async function getOrCreateCalendarToken(userId: string): Promise<string> {
+  const existing = await getSetting(userId, CALENDAR_TOKEN_KEY);
   if (existing) return existing;
 
   const token = createFeedToken();
-  await setSetting(CALENDAR_TOKEN_KEY, token);
+  await setSetting(userId, CALENDAR_TOKEN_KEY, token);
   return token;
 }
 
-export async function rotateCalendarToken(): Promise<string> {
+export async function rotateCalendarToken(userId: string): Promise<string> {
   const token = createFeedToken();
-  await setSetting(CALENDAR_TOKEN_KEY, token);
+  await setSetting(userId, CALENDAR_TOKEN_KEY, token);
   return token;
-}
-
-/** 32 hex-символа — 128 бит случайности, перебором не находится. */
-function createFeedToken(): string {
-  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "").slice(0, 32);
 }
 
 // ─── Публичная сводка ────────────────────────────────────────────────────────
@@ -80,28 +111,28 @@ function createFeedToken(): string {
  * отдельный флаг. Так ссылку можно подготовить и скопировать заранее, а
  * доступ включить и выключить в один клик, не меняя адрес.
  */
-export async function getOrCreateShareToken(): Promise<string> {
-  const existing = await getSetting(SHARE_TOKEN_KEY);
+export async function getOrCreateShareToken(userId: string): Promise<string> {
+  const existing = await getSetting(userId, SHARE_TOKEN_KEY);
   if (existing) return existing;
 
   const token = createFeedToken();
-  await setSetting(SHARE_TOKEN_KEY, token);
+  await setSetting(userId, SHARE_TOKEN_KEY, token);
   return token;
 }
 
-export async function rotateShareToken(): Promise<string> {
+export async function rotateShareToken(userId: string): Promise<string> {
   const token = createFeedToken();
-  await setSetting(SHARE_TOKEN_KEY, token);
+  await setSetting(userId, SHARE_TOKEN_KEY, token);
   return token;
 }
 
-export async function isShareEnabled(): Promise<boolean> {
+export async function isShareEnabled(userId: string): Promise<boolean> {
   // По умолчанию выключено: публичный доступ включается осознанно.
-  return (await getSetting(SHARE_ENABLED_KEY)) === "1";
+  return (await getSetting(userId, SHARE_ENABLED_KEY)) === "1";
 }
 
-export async function setShareEnabled(enabled: boolean): Promise<void> {
-  await setSetting(SHARE_ENABLED_KEY, enabled ? "1" : "0");
+export async function setShareEnabled(userId: string, enabled: boolean): Promise<void> {
+  await setSetting(userId, SHARE_ENABLED_KEY, enabled ? "1" : "0");
 }
 
 // ─── Приём данных здоровья ───────────────────────────────────────────────────
@@ -112,17 +143,17 @@ export async function setShareEnabled(enabled: boolean): Promise<void> {
  * отдельного флага включения, потому что знание непредсказуемого токена уже
  * и есть допуск (тот же принцип, что у ленты календаря).
  */
-export async function getOrCreateHealthToken(): Promise<string> {
-  const existing = await getSetting(HEALTH_TOKEN_KEY);
+export async function getOrCreateHealthToken(userId: string): Promise<string> {
+  const existing = await getSetting(userId, HEALTH_TOKEN_KEY);
   if (existing) return existing;
 
   const token = createFeedToken();
-  await setSetting(HEALTH_TOKEN_KEY, token);
+  await setSetting(userId, HEALTH_TOKEN_KEY, token);
   return token;
 }
 
-export async function rotateHealthToken(): Promise<string> {
+export async function rotateHealthToken(userId: string): Promise<string> {
   const token = createFeedToken();
-  await setSetting(HEALTH_TOKEN_KEY, token);
+  await setSetting(userId, HEALTH_TOKEN_KEY, token);
   return token;
 }

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/app-shell";
 import { HealthExport } from "@/components/health/health-export";
 import { HealthReadings } from "@/components/health/health-readings";
 import { Panel, PanelHeader } from "@/components/ui/panel";
+import { requireUser } from "@/lib/auth/user";
 import { getLatestHealth, listHealthInRange } from "@/lib/queries/health";
 import { getOrCreateHealthToken } from "@/lib/queries/settings";
 import { addDays, todayIso } from "@/lib/utils/date";
@@ -27,14 +28,15 @@ export const metadata: Metadata = { title: "Здоровье" };
 export const dynamic = "force-dynamic";
 
 export default async function HealthPage() {
+  const user = await requireUser();
   const today = todayIso();
   const twoWeeksAgo = addDays(today, -13);
 
   const [origin, token, latest, recentRaw] = await Promise.all([
     resolveSiteOrigin(),
-    getOrCreateHealthToken(),
-    getLatestHealth(),
-    listHealthInRange(twoWeeksAgo, today),
+    getOrCreateHealthToken(user.id),
+    getLatestHealth(user.id),
+    listHealthInRange(user.id, twoWeeksAgo, today),
   ]);
 
   // Дни без записи оставляем в ряду нулевыми — иначе полосы «съезжают»

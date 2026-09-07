@@ -18,9 +18,10 @@ import { cn } from "@/lib/utils/cn";
 
 interface CalendarFeedProps {
   feedUrl: string;
+  index?: number;
 }
 
-export function CalendarFeed({ feedUrl }: CalendarFeedProps) {
+export function CalendarFeed({ feedUrl, index }: CalendarFeedProps) {
   const [url, setUrl] = useState(feedUrl);
   const [copied, setCopied] = useState(false);
   const [confirmingRotate, setConfirmingRotate] = useState(false);
@@ -56,7 +57,7 @@ export function CalendarFeed({ feedUrl }: CalendarFeedProps) {
   }
 
   return (
-    <Panel index={0}>
+    <Panel index={index}>
       <PanelHeader
         eyebrow="Календарь"
         title="Подписка на расписание"

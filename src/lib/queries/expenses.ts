@@ -4,7 +4,9 @@ import type { Row } from "@libsql/client";
 
 import { db } from "@/lib/db/client";
 import { bool, num, str } from "@/lib/db/rows";
+import { DEFAULT_CATEGORIES } from "@/lib/db/schema";
 import type { Category, Expense, ExpenseWithCategory, IsoDate } from "@/lib/types";
+import { createId } from "@/lib/utils/id";
 
 /**
  * Чтение данных раздела «Расходы».
@@ -13,17 +15,22 @@ import type { Category, Expense, ExpenseWithCategory, IsoDate } from "@/lib/type
  * Все подсчёты (итоги, доли, тренды, статистика) живут в
  * src/lib/analytics/expenses.ts как чистые функции: их проще читать,
  * менять и тестировать отдельно от SQL.
+ *
+ * Каждая функция принимает userId первым параметром и фильтрует им же —
+ * без этого один пользователь видел бы траты другого.
  */
 
 // ─── Категории ───────────────────────────────────────────────────────────────
 
-export async function listCategories(): Promise<Category[]> {
+export async function listCategories(userId: string): Promise<Category[]> {
   const client = await db();
-  const result = await client.execute(
-    `SELECT id, name, color, icon, is_default, sort_order
-       FROM categories
-      ORDER BY sort_order ASC, name ASC`,
-  );
+  const result = await client.execute({
+    sql: `SELECT id, name, color, icon, is_default, sort_order
+            FROM categories
+           WHERE user_id = ?
+           ORDER BY sort_order ASC, name ASC`,
+    args: [userId],
+  });
 
   return result.rows.map((row) => ({
     id: str(row, "id"),
@@ -33,6 +40,34 @@ export async function listCategories(): Promise<Category[]> {
     isDefault: bool(row, "is_default"),
     sortOrder: num(row, "sort_order"),
   }));
+}
+
+/**
+ * Заводит стартовый набор категорий новому пользователю.
+ *
+ * Свои id на каждого — не переиспользуем DEFAULT_CATEGORIES.id (`cat_groceries`
+ * и т.д.), они годятся только для легаси-пути SEED_STATEMENTS в db/schema.ts,
+ * который создаёт их ровно один раз, глобально, для первого (унаследовавшего
+ * старые данные) пользователя. У всех следующих — новые id, иначе второй
+ * зарегистрированный столкнулся бы с уже занятым id при вставке.
+ */
+export async function seedCategoriesForUser(userId: string): Promise<void> {
+  const client = await db();
+  await client.batch(
+    DEFAULT_CATEGORIES.map((category) => ({
+      sql: `INSERT INTO categories (id, user_id, name, color, icon, is_default, sort_order)
+            VALUES (?, ?, ?, ?, ?, 1, ?)`,
+      args: [
+        createId("cat"),
+        userId,
+        category.name,
+        category.color,
+        category.icon,
+        category.sortOrder,
+      ],
+    })),
+    "write",
+  );
 }
 
 // ─── Траты ───────────────────────────────────────────────────────────────────
@@ -67,41 +102,50 @@ function mapExpense(row: Row): ExpenseWithCategory {
 
 /** Траты за диапазон дат включительно. Основной источник данных страницы. */
 export async function listExpensesInRange(
+  userId: string,
   from: IsoDate,
   to: IsoDate,
 ): Promise<ExpenseWithCategory[]> {
   const client = await db();
   const result = await client.execute({
     sql: `${EXPENSE_SELECT}
-           WHERE e.date BETWEEN ? AND ?
+           WHERE e.user_id = ? AND e.date BETWEEN ? AND ?
            ORDER BY e.date DESC, e.created_at DESC`,
-    args: [from, to],
+    args: [userId, from, to],
   });
 
   return result.rows.map(mapExpense);
 }
 
 /** Последние N трат независимо от периода — для виджета на «Обзоре». */
-export async function listRecentExpenses(limit = 5): Promise<ExpenseWithCategory[]> {
+export async function listRecentExpenses(
+  userId: string,
+  limit = 5,
+): Promise<ExpenseWithCategory[]> {
   const client = await db();
   const result = await client.execute({
     sql: `${EXPENSE_SELECT}
+           WHERE e.user_id = ?
            ORDER BY e.date DESC, e.created_at DESC
            LIMIT ?`,
-    args: [limit],
+    args: [userId, limit],
   });
 
   return result.rows.map(mapExpense);
 }
 
 /** Сумма трат за диапазон. Считается в SQL — данные за пределами месяца не грузим. */
-export async function sumExpensesInRange(from: IsoDate, to: IsoDate): Promise<number> {
+export async function sumExpensesInRange(
+  userId: string,
+  from: IsoDate,
+  to: IsoDate,
+): Promise<number> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT COALESCE(SUM(amount), 0) AS total
             FROM expenses
-           WHERE date BETWEEN ? AND ?`,
-    args: [from, to],
+           WHERE user_id = ? AND date BETWEEN ? AND ?`,
+    args: [userId, from, to],
   });
 
   const row = result.rows[0];
@@ -113,6 +157,7 @@ export async function sumExpensesInRange(from: IsoDate, to: IsoDate): Promise<nu
  * Используется графиком сравнения месяцев.
  */
 export async function listMonthlyTotals(
+  userId: string,
   monthsBack = 6,
 ): Promise<Array<{ monthKey: string; total: number }>> {
   const client = await db();
@@ -120,10 +165,11 @@ export async function listMonthlyTotals(
     sql: `SELECT substr(date, 1, 7) AS month_key,
                  SUM(amount)        AS total
             FROM expenses
+           WHERE user_id = ?
            GROUP BY month_key
            ORDER BY month_key DESC
            LIMIT ?`,
-    args: [monthsBack],
+    args: [userId, monthsBack],
   });
 
   // SQL отдаёт от новых к старым — на графике нужен хронологический порядок.
@@ -136,13 +182,13 @@ export async function listMonthlyTotals(
 }
 
 /** Одна трата по id — нужна серверным действиям для проверок перед записью. */
-export async function findExpense(id: string): Promise<Expense | null> {
+export async function findExpense(userId: string, id: string): Promise<Expense | null> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT id, date, category_id, note, amount, created_at
             FROM expenses
-           WHERE id = ?`,
-    args: [id],
+           WHERE id = ? AND user_id = ?`,
+    args: [id, userId],
   });
 
   const row = result.rows[0];
@@ -159,11 +205,11 @@ export async function findExpense(id: string): Promise<Expense | null> {
 }
 
 /** Сколько трат ссылается на категорию — блокирует удаление непустой категории. */
-export async function countExpensesByCategory(categoryId: string): Promise<number> {
+export async function countExpensesByCategory(userId: string, categoryId: string): Promise<number> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT COUNT(*) AS total FROM expenses WHERE category_id = ?`,
-    args: [categoryId],
+    sql: `SELECT COUNT(*) AS total FROM expenses WHERE user_id = ? AND category_id = ?`,
+    args: [userId, categoryId],
   });
 
   const row = result.rows[0];
@@ -171,9 +217,12 @@ export async function countExpensesByCategory(categoryId: string): Promise<numbe
 }
 
 /** Самая ранняя трата — определяет, с какого месяца есть данные. */
-export async function findEarliestExpenseDate(): Promise<IsoDate | null> {
+export async function findEarliestExpenseDate(userId: string): Promise<IsoDate | null> {
   const client = await db();
-  const result = await client.execute(`SELECT MIN(date) AS first_date FROM expenses`);
+  const result = await client.execute({
+    sql: `SELECT MIN(date) AS first_date FROM expenses WHERE user_id = ?`,
+    args: [userId],
+  });
 
   const row = result.rows[0];
   const value = row ? str(row, "first_date") : "";

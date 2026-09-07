@@ -5,7 +5,7 @@ import { num, str } from "@/lib/db/rows";
 import type { HealthDaily, IsoDate } from "@/lib/types";
 import type { Row } from "@libsql/client";
 
-/** Чтение данных здоровья. Запись — в lib/actions/health.ts (вебхук). */
+/** Чтение данных здоровья. Запись — в api/health/[token]/route.ts (вебхук). */
 
 function mapRow(row: Row): HealthDaily {
   return {
@@ -22,28 +22,34 @@ function nullableNum(row: Row, key: string): number | null {
   return row[key] === null || row[key] === undefined ? null : num(row, key);
 }
 
-export async function listHealthInRange(from: IsoDate, to: IsoDate): Promise<HealthDaily[]> {
+export async function listHealthInRange(
+  userId: string,
+  from: IsoDate,
+  to: IsoDate,
+): Promise<HealthDaily[]> {
   const client = await db();
   const result = await client.execute({
     sql: `SELECT date, steps, sleep_minutes, resting_heart_rate, updated_at
             FROM health_daily
-           WHERE date BETWEEN ? AND ?
+           WHERE user_id = ? AND date BETWEEN ? AND ?
            ORDER BY date ASC`,
-    args: [from, to],
+    args: [userId, from, to],
   });
 
   return result.rows.map(mapRow);
 }
 
 /** Последняя строка с хоть каким-то значением — для «свежих показателей» на странице. */
-export async function getLatestHealth(): Promise<HealthDaily | null> {
+export async function getLatestHealth(userId: string): Promise<HealthDaily | null> {
   const client = await db();
-  const result = await client.execute(
-    `SELECT date, steps, sleep_minutes, resting_heart_rate, updated_at
-       FROM health_daily
-      ORDER BY date DESC
-      LIMIT 1`,
-  );
+  const result = await client.execute({
+    sql: `SELECT date, steps, sleep_minutes, resting_heart_rate, updated_at
+            FROM health_daily
+           WHERE user_id = ?
+           ORDER BY date DESC
+           LIMIT 1`,
+    args: [userId],
+  });
 
   const row = result.rows[0];
   return row ? mapRow(row) : null;

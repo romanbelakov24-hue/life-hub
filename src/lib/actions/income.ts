@@ -34,7 +34,7 @@ function validateIncome(input: IncomeInput): string | null {
 }
 
 export async function createIncome(input: IncomeInput): Promise<ActionResult<{ id: string }>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateIncome(input);
     if (error) return failure(error);
 
@@ -42,10 +42,11 @@ export async function createIncome(input: IncomeInput): Promise<ActionResult<{ i
     const id = createId("inc");
 
     await client.execute({
-      sql: `INSERT INTO incomes (id, date, amount, source, created_at)
-            VALUES (?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO incomes (id, user_id, date, amount, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
       args: [
         id,
+        userId,
         input.date,
         roundTo(input.amount, 2),
         input.source.trim(),
@@ -62,14 +63,14 @@ export async function updateIncome(
   id: string,
   input: IncomeInput,
 ): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const error = validateIncome(input);
     if (error) return failure(error);
 
     const client = await db();
     const result = await client.execute({
-      sql: `UPDATE incomes SET date = ?, amount = ?, source = ? WHERE id = ?`,
-      args: [input.date, roundTo(input.amount, 2), input.source.trim(), id],
+      sql: `UPDATE incomes SET date = ?, amount = ?, source = ? WHERE id = ? AND user_id = ?`,
+      args: [input.date, roundTo(input.amount, 2), input.source.trim(), id, userId],
     });
 
     if (result.rowsAffected === 0) return failure("Запись не найдена.");
@@ -80,9 +81,12 @@ export async function updateIncome(
 }
 
 export async function deleteIncome(id: string): Promise<ActionResult<null>> {
-  return guard(async () => {
+  return guard(async (userId) => {
     const client = await db();
-    await client.execute({ sql: `DELETE FROM incomes WHERE id = ?`, args: [id] });
+    await client.execute({
+      sql: `DELETE FROM incomes WHERE id = ? AND user_id = ?`,
+      args: [id, userId],
+    });
 
     revalidateBudgetViews();
     return success(null);

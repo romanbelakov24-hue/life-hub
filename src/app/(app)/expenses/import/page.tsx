@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { StatementImport } from "@/components/expenses/statement-import";
+import { requireUser } from "@/lib/auth/user";
 import { listCategories } from "@/lib/queries/expenses";
 
 /**
@@ -19,7 +20,8 @@ export const metadata: Metadata = { title: "Импорт выписки" };
 export const dynamic = "force-dynamic";
 
 export default async function ImportPage() {
-  const categories = await listCategories();
+  const user = await requireUser();
+  const categories = await listCategories(user.id);
 
   return (
     <>

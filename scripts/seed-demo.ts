@@ -178,7 +178,7 @@ async function main(): Promise<void> {
         sql: `INSERT INTO schedule_slots
                 (id, weekday, pair_index, subject, room, teacher, start_time, end_time, color)
               VALUES (?, ?, ?, ?, ?, ?, '', '', ?)
-              ON CONFLICT(weekday, pair_index) DO UPDATE SET subject = excluded.subject`,
+              ON CONFLICT(user_id, weekday, pair_index) DO UPDATE SET subject = excluded.subject`,
         args: [
           randomId("slot"),
           slot.weekday,

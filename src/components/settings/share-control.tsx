@@ -20,9 +20,10 @@ import { cn } from "@/lib/utils/cn";
 interface ShareControlProps {
   shareUrl: string;
   enabled: boolean;
+  index?: number;
 }
 
-export function ShareControl({ shareUrl, enabled: initialEnabled }: ShareControlProps) {
+export function ShareControl({ shareUrl, enabled: initialEnabled, index }: ShareControlProps) {
   const [url, setUrl] = useState(shareUrl);
   const [enabled, setEnabled] = useState(initialEnabled);
   const [copied, setCopied] = useState(false);
@@ -72,7 +73,7 @@ export function ShareControl({ shareUrl, enabled: initialEnabled }: ShareControl
   }
 
   return (
-    <Panel index={1}>
+    <Panel index={index}>
       <PanelHeader
         eyebrow="Доступ"
         title="Сводка для близких"

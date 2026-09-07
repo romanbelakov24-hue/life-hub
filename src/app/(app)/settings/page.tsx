@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/layout/app-shell";
+import { AccountPanel } from "@/components/settings/account-panel";
 import { CalendarFeed } from "@/components/settings/calendar-feed";
 import { ShareControl } from "@/components/settings/share-control";
+import { requireUser } from "@/lib/auth/user";
 import {
   getOrCreateCalendarToken,
   getOrCreateShareToken,
@@ -23,11 +25,13 @@ export const metadata: Metadata = { title: "Настройки" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const user = await requireUser();
+
   const [origin, calendarToken, shareToken, shareEnabled] = await Promise.all([
     resolveSiteOrigin(),
-    getOrCreateCalendarToken(),
-    getOrCreateShareToken(),
-    isShareEnabled(),
+    getOrCreateCalendarToken(user.id),
+    getOrCreateShareToken(user.id),
+    isShareEnabled(user.id),
   ]);
 
   return (
@@ -39,8 +43,9 @@ export default async function SettingsPage() {
       />
 
       <div className="flex flex-col gap-4">
-        <CalendarFeed feedUrl={`${origin}/api/calendar/${calendarToken}.ics`} />
-        <ShareControl shareUrl={`${origin}/s/${shareToken}`} enabled={shareEnabled} />
+        <AccountPanel email={user.email} name={user.name} index={0} />
+        <CalendarFeed feedUrl={`${origin}/api/calendar/${calendarToken}.ics`} index={1} />
+        <ShareControl shareUrl={`${origin}/s/${shareToken}`} enabled={shareEnabled} index={2} />
       </div>
     </>
   );

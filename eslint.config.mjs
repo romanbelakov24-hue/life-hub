@@ -21,6 +21,10 @@ const eslintConfig = [
       "android/**",
       // Статика: сюда скриптом кладётся минифицированный воркер pdf.js.
       "public/**",
+      // Сборка под Cloudflare Workers (OpenNext) и локальный запуск Wrangler —
+      // сгенерированный и вендорный код, вручную не редактируется.
+      ".open-next/**",
+      ".wrangler/**",
     ],
   },
 ];
