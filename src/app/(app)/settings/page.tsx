@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 
 import { PageHeader } from "@/components/layout/app-shell";
 import { CalendarFeed } from "@/components/settings/calendar-feed";
@@ -9,6 +8,7 @@ import {
   getOrCreateShareToken,
   isShareEnabled,
 } from "@/lib/queries/settings";
+import { resolveSiteOrigin } from "@/lib/utils/origin";
 
 /**
  * Настройки.
@@ -22,26 +22,9 @@ export const metadata: Metadata = { title: "Настройки" };
 
 export const dynamic = "force-dynamic";
 
-/**
- * Собирает абсолютный адрес ленты из заголовков запроса.
- *
- * Хардкодить домен нельзя: он разный у локальной разработки, превью-деплоя и
- * продакшна. За прокси Netlify оригинальная схема приезжает в
- * `x-forwarded-proto` — без неё на проде получился бы http-адрес.
- */
-async function resolveOrigin(): Promise<string> {
-  const headerList = await headers();
-
-  const host = headerList.get("host") ?? "localhost:3000";
-  const protocol =
-    headerList.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-
-  return `${protocol}://${host}`;
-}
-
 export default async function SettingsPage() {
   const [origin, calendarToken, shareToken, shareEnabled] = await Promise.all([
-    resolveOrigin(),
+    resolveSiteOrigin(),
     getOrCreateCalendarToken(),
     getOrCreateShareToken(),
     isShareEnabled(),

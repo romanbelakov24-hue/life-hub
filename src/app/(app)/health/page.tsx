@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Rocket } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/app-shell";
@@ -9,6 +8,7 @@ import { Panel, PanelHeader } from "@/components/ui/panel";
 import { getLatestHealth, listHealthInRange } from "@/lib/queries/health";
 import { getOrCreateHealthToken } from "@/lib/queries/settings";
 import { addDays, todayIso } from "@/lib/utils/date";
+import { resolveSiteOrigin } from "@/lib/utils/origin";
 
 /**
  * Раздел «Здоровье».
@@ -26,20 +26,12 @@ export const metadata: Metadata = { title: "Здоровье" };
 
 export const dynamic = "force-dynamic";
 
-async function resolveOrigin(): Promise<string> {
-  const headerList = await headers();
-  const host = headerList.get("host") ?? "localhost:3000";
-  const protocol =
-    headerList.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${protocol}://${host}`;
-}
-
 export default async function HealthPage() {
   const today = todayIso();
   const twoWeeksAgo = addDays(today, -13);
 
   const [origin, token, latest, recentRaw] = await Promise.all([
-    resolveOrigin(),
+    resolveSiteOrigin(),
     getOrCreateHealthToken(),
     getLatestHealth(),
     listHealthInRange(twoWeeksAgo, today),
