@@ -1,8 +1,9 @@
 import { Settings } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { RouteProgress } from "@/components/layout/route-progress";
 import { Sidebar, Wordmark } from "@/components/layout/sidebar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -16,6 +17,12 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="relative z-10 min-h-dvh">
+      {/* useSearchParams требует границу Suspense — сама полоса ничего не
+          ждёт, fallback ей не нужен. */}
+      <Suspense fallback={null}>
+        <RouteProgress />
+      </Suspense>
+
       <Sidebar />
 
       {/* Шапка только для мобильных — на десктопе её роль играет сайдбар. */}

@@ -10,32 +10,26 @@
  * календаре, обратно не приедут — подписка доступна только для чтения.
  *
  * Что попадает в ленту:
- *   • пары из расписания — еженедельно повторяющимися событиями;
+ *   • пары из расписания — отдельным событием на каждый реальный день в
+ *     окне ~3 недели назад / ~12 недель вперёд (см. WINDOW_DAYS_*);
  *   • задачи с дедлайном — событиями на весь день.
+ *
+ * Почему пары не одной повторяющейся RRULE-серией, как раньше: при каждом
+ * перечитывании подписки клиент видит мастер-событие с тем же UID, но новым
+ * DTSTAMP (лента генерируется заново на каждый запрос). У части клиентов —
+ * замечено на Apple Calendar — это приводит не к обновлению серии на месте,
+ * а к добавлению ещё одной: пары задваиваются на будущих неделях при каждой
+ * синхронизации. Отдельные события с датой в UID (`${slot.id}-${dateIso}`)
+ * идемпотентны: для того же дня при следующем запросе — тот же UID, клиент
+ * обновляет событие на месте, а не создаёт копию.
  */
 
 import { PAIRS_PER_DAY, resolvePairTime } from "@/config/schedule";
 import type { ScheduleSlot, Task, Weekday } from "@/lib/types";
 
-/** Коды дней недели в RRULE. Индекс — ISO-номер дня (1 = понедельник). */
-const BYDAY: Record<Weekday, string> = {
-  1: "MO",
-  2: "TU",
-  3: "WE",
-  4: "TH",
-  5: "FR",
-  6: "SA",
-  7: "SU",
-};
-
-/**
- * Опорная дата серии — понедельник 1 января 2024 года.
- *
- * Она намеренно фиксированная и в прошлом: если считать «ближайший такой день
- * недели», DTSTART съезжал бы при каждом запросе ленты, и клиент видел бы новую
- * серию вместо прежней.
- */
-const SERIES_ANCHOR = new Date(2024, 0, 1);
+/** Насколько далеко назад и вперёд от сегодня генерировать события пар. */
+const WINDOW_DAYS_BACK = 21;
+const WINDOW_DAYS_FORWARD = 84;
 
 // ─── Примитивы формата ───────────────────────────────────────────────────────
 
@@ -107,11 +101,34 @@ function timestampUtc(): string {
   return `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
 }
 
-/** Дата опорного дня недели: понедельник-якорь плюс смещение. */
-function anchorDateFor(weekday: Weekday): Date {
-  const date = new Date(SERIES_ANCHOR);
-  date.setDate(date.getDate() + (weekday - 1));
-  return date;
+/** `YYYY-MM-DD` в терминах локального времени (не UTC — важно на границе суток). */
+function toIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+/** ISO-номер дня недели для даты (1 = понедельник ... 7 = воскресенье). */
+function isoWeekday(date: Date): Weekday {
+  return (((date.getDay() + 6) % 7) + 1) as Weekday;
+}
+
+/**
+ * Даты в `[from, to]`, попадающие на нужный день недели, с шагом в неделю.
+ *
+ * Так вместо RRULE каждая пара превращается в набор конкретных дней в окне —
+ * см. комментарий в начале файла о том, зачем это нужно.
+ */
+function datesForWeekday(weekday: Weekday, from: Date, to: Date): Date[] {
+  const offset = ((weekday - isoWeekday(from)) % 7 + 7) % 7;
+  const first = new Date(from);
+  first.setDate(first.getDate() + offset);
+
+  const dates: Date[] = [];
+  for (const date = first; date <= to; date.setDate(date.getDate() + 7)) {
+    dates.push(new Date(date));
+  }
+  return dates;
 }
 
 /** Прибавляет день: DTEND у события на весь день не включается в интервал. */
@@ -162,7 +179,14 @@ export function buildCalendar({
     "X-PUBLISHED-TTL:PT1H",
   ];
 
-  // ─── Пары: еженедельные повторяющиеся события ───────────────────────────────
+  // ─── Пары: по одному событию на каждый реальный день в окне ────────────────
+  const windowStart = new Date();
+  windowStart.setHours(0, 0, 0, 0);
+  windowStart.setDate(windowStart.getDate() - WINDOW_DAYS_BACK);
+
+  const windowEnd = new Date(windowStart);
+  windowEnd.setDate(windowEnd.getDate() + WINDOW_DAYS_BACK + WINDOW_DAYS_FORWARD);
+
   for (const slot of slots) {
     if (!slot.subject.trim()) continue;
     if (slot.pairIndex < 1 || slot.pairIndex > PAIRS_PER_DAY) continue;
@@ -170,34 +194,39 @@ export function buildCalendar({
     const { start, end } = resolvePairTime(slot.pairIndex, slot.startTime, slot.endTime);
     if (!start || !end) continue;
 
-    const anchor = anchorDateFor(slot.weekday);
     const description = [slot.teacher, `${slot.pairIndex}-я пара`]
       .filter(Boolean)
       .join(" · ");
 
-    lines.push(
-      "BEGIN:VEVENT",
-      `UID:${slot.id}@life-hub`,
-      `DTSTAMP:${stamp}`,
-      // Без TZID и без Z — «плавающее» время. Для расписания пар это правильно:
-      // 08:30 означает 08:30 по часам устройства, где бы оно ни находилось.
-      `DTSTART:${toFloatingDateTime(anchor, start)}`,
-      `DTEND:${toFloatingDateTime(anchor, end)}`,
-      `RRULE:FREQ=WEEKLY;BYDAY=${BYDAY[slot.weekday]}`,
-      `SUMMARY:${escapeText(slot.subject)}`,
-    );
+    for (const date of datesForWeekday(slot.weekday, windowStart, windowEnd)) {
+      const dateIso = toIsoDate(date);
 
-    if (slot.room.trim()) lines.push(`LOCATION:${escapeText(slot.room)}`);
-    if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+      lines.push(
+        "BEGIN:VEVENT",
+        // Дата в UID — не дублирующийся идентификатор одной и той же пары в
+        // конкретный день: тот же день при следующем запросе ленты даёт тот же
+        // UID, и клиент обновляет событие на месте, а не создаёт копию.
+        `UID:${slot.id}-${dateIso}@life-hub`,
+        `DTSTAMP:${stamp}`,
+        // Без TZID и без Z — «плавающее» время. Для расписания пар это правильно:
+        // 08:30 означает 08:30 по часам устройства, где бы оно ни находилось.
+        `DTSTART:${toFloatingDateTime(date, start)}`,
+        `DTEND:${toFloatingDateTime(date, end)}`,
+        `SUMMARY:${escapeText(slot.subject)}`,
+      );
 
-    lines.push(
-      "BEGIN:VALARM",
-      "ACTION:DISPLAY",
-      `TRIGGER:-PT${lessonReminderMinutes}M`,
-      `DESCRIPTION:${escapeText(slot.subject)}`,
-      "END:VALARM",
-      "END:VEVENT",
-    );
+      if (slot.room.trim()) lines.push(`LOCATION:${escapeText(slot.room)}`);
+      if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+
+      lines.push(
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        `TRIGGER:-PT${lessonReminderMinutes}M`,
+        `DESCRIPTION:${escapeText(slot.subject)}`,
+        "END:VALARM",
+        "END:VEVENT",
+      );
+    }
   }
 
   // ─── Дедлайны задач: события на весь день ───────────────────────────────────
