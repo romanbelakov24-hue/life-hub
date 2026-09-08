@@ -1,6 +1,12 @@
 import { buildCalendar } from "@/lib/calendar/ics";
-import { listScheduleSlots, listTasks } from "@/lib/queries/study";
+import { listEventsInRange } from "@/lib/queries/events";
 import { CALENDAR_TOKEN_KEY, findUserIdByToken } from "@/lib/queries/settings";
+import { listTasks } from "@/lib/queries/study";
+import { addDays, todayIso } from "@/lib/utils/date";
+
+/** Окно ленты: недавнее прошлое видно для справки, дальше — с запасом на семестр. */
+const WINDOW_DAYS_BACK = 30;
+const WINDOW_DAYS_FORWARD = 365;
 
 /**
  * Календарная лента: `/api/calendar/<токен>.ics`
@@ -33,8 +39,12 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  const [slots, tasks] = await Promise.all([listScheduleSlots(userId), listTasks(userId)]);
-  const body = buildCalendar({ slots, tasks });
+  const today = todayIso();
+  const [events, tasks] = await Promise.all([
+    listEventsInRange(userId, addDays(today, -WINDOW_DAYS_BACK), addDays(today, WINDOW_DAYS_FORWARD)),
+    listTasks(userId),
+  ]);
+  const body = buildCalendar({ events, tasks });
 
   return new Response(body, {
     status: 200,

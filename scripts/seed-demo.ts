@@ -1,7 +1,7 @@
 /**
  * Демо-данные для проверки интерфейса: `npm run db:seed -- --yes`.
  *
- * Заполняет базу правдоподобными тратами за два месяца, расписанием,
+ * Заполняет базу правдоподобными тратами за два месяца, делами в календаре,
  * задачами и заметками. Нужен, чтобы посмотреть, как выглядят графики и
  * списки с реальными объёмами данных, не вводя всё руками.
  *
@@ -65,18 +65,15 @@ const SAMPLE_PURCHASES: Array<{ categoryId: string; note: string; min: number; m
   { categoryId: "cat_other", note: "Аптека", min: 250, max: 1200 },
 ];
 
-const SAMPLE_SCHEDULE = [
-  { weekday: 1, pairIndex: 1, subject: "Матанализ", room: "412", teacher: "Орлова А. В." },
-  { weekday: 1, pairIndex: 2, subject: "Линейная алгебра", room: "412", teacher: "Орлова А. В." },
-  { weekday: 1, pairIndex: 4, subject: "Английский", room: "207", teacher: "Крылова М. С." },
-  { weekday: 2, pairIndex: 2, subject: "Программирование", room: "305", teacher: "Демин П. Р." },
-  { weekday: 2, pairIndex: 3, subject: "Программирование", room: "305", teacher: "Демин П. Р." },
-  { weekday: 3, pairIndex: 1, subject: "Физика", room: "118", teacher: "Соколов И. И." },
-  { weekday: 3, pairIndex: 3, subject: "История", room: "220", teacher: "Фомина Л. Д." },
-  { weekday: 4, pairIndex: 2, subject: "Матанализ", room: "412", teacher: "Орлова А. В." },
-  { weekday: 4, pairIndex: 3, subject: "Базы данных", room: "310", teacher: "Демин П. Р." },
-  { weekday: 5, pairIndex: 1, subject: "Физика", room: "118", teacher: "Соколов И. И." },
-  { weekday: 5, pairIndex: 2, subject: "Английский", room: "207", teacher: "Крылова М. С." },
+const SAMPLE_EVENTS = [
+  { title: "Доктор", location: "Клиника на Ленинском", start: "17:00", end: "18:00", offset: -7 },
+  { title: "Доктор", location: "Клиника на Ленинском", start: "17:00", end: "18:00", offset: 0 },
+  { title: "Доктор", location: "Клиника на Ленинском", start: "17:00", end: "18:00", offset: 7 },
+  { title: "Тренировка", location: "Фитнес-клуб", start: "20:00", end: "21:30", offset: -5 },
+  { title: "Тренировка", location: "Фитнес-клуб", start: "20:00", end: "21:30", offset: 2 },
+  { title: "Тренировка", location: "Фитнес-клуб", start: "20:00", end: "21:30", offset: 9 },
+  { title: "День рождения у Насти", location: "", start: "", end: "", offset: 4 },
+  { title: "Встреча со старостой", location: "", start: "16:00", end: "16:30", offset: 1 },
 ];
 
 const SAMPLE_TASKS = [
@@ -161,38 +158,38 @@ async function main(): Promise<void> {
   await client.batch(expenseStatements, "write");
   console.log(`Добавлено трат: ${expenseStatements.length}.`);
 
-  // ─── Расписание ─────────────────────────────────────────────────────────────
+  // ─── Календарь ──────────────────────────────────────────────────────────────
   const paletteByIndex = ["#e0642f", "#c4457c", "#7a5af8", "#2f80ed", "#12a594", "#4f9d2f"];
-  const subjectColors = new Map<string, string>();
+  const titleColors = new Map<string, string>();
 
   await client.batch(
-    SAMPLE_SCHEDULE.map((slot) => {
-      if (!subjectColors.has(slot.subject)) {
-        subjectColors.set(
-          slot.subject,
-          paletteByIndex[subjectColors.size % paletteByIndex.length] ?? "#7e8894",
+    SAMPLE_EVENTS.map((event) => {
+      if (!titleColors.has(event.title)) {
+        titleColors.set(
+          event.title,
+          paletteByIndex[titleColors.size % paletteByIndex.length] ?? "#7e8894",
         );
       }
 
       return {
-        sql: `INSERT INTO schedule_slots
-                (id, weekday, pair_index, subject, room, teacher, start_time, end_time, color)
-              VALUES (?, ?, ?, ?, ?, ?, '', '', ?)
-              ON CONFLICT(user_id, weekday, pair_index) DO UPDATE SET subject = excluded.subject`,
+        sql: `INSERT INTO events
+                (id, date, start_time, end_time, title, location, description, color, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, '', ?, ?)`,
         args: [
-          randomId("slot"),
-          slot.weekday,
-          slot.pairIndex,
-          slot.subject,
-          slot.room,
-          slot.teacher,
-          subjectColors.get(slot.subject) ?? "#7e8894",
+          randomId("evt"),
+          daysAgo(-event.offset),
+          event.start,
+          event.end,
+          event.title,
+          event.location,
+          titleColors.get(event.title) ?? "#7e8894",
+          now,
         ],
       };
     }),
     "write",
   );
-  console.log(`Пар в расписании: ${SAMPLE_SCHEDULE.length}.`);
+  console.log(`Дел в календаре: ${SAMPLE_EVENTS.length}.`);
 
   // ─── Задачи ─────────────────────────────────────────────────────────────────
   await client.batch(

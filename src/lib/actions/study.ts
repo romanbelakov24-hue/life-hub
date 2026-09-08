@@ -4,122 +4,20 @@ import { revalidatePath } from "next/cache";
 
 import { failure, guard, success, type ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
-import type { IsoDate, Weekday } from "@/lib/types";
+import type { IsoDate } from "@/lib/types";
 import { isValidIso } from "@/lib/utils/date";
 import { createId } from "@/lib/utils/id";
 
 /**
- * Серверные действия учебного планера: расписание, заметки, задачи.
+ * Серверные действия учебного планера: заметки, задачи.
  * Правила те же, что в actions/expenses.ts — валидация на сервере
- * и revalidatePath после каждой записи.
+ * и revalidatePath после каждой записи. Календарь дел — в actions/events.ts.
  */
 
 function revalidateStudyViews(): void {
-  revalidatePath("/schedule");
   revalidatePath("/tasks");
   revalidatePath("/notes");
   revalidatePath("/");
-}
-
-/** Время в формате HH:MM или пустая строка (значит «взять из расписания звонков»). */
-function isValidTime(value: string): boolean {
-  return value === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
-
-// ─── Расписание ──────────────────────────────────────────────────────────────
-
-export interface ScheduleSlotInput {
-  weekday: Weekday;
-  pairIndex: number;
-  subject: string;
-  room: string;
-  teacher: string;
-  startTime: string;
-  endTime: string;
-  color: string;
-}
-
-function validateSlot(input: ScheduleSlotInput): string | null {
-  if (!input.subject.trim()) return "Введите название предмета.";
-  if (input.subject.length > 80) return "Название предмета слишком длинное.";
-  if (input.weekday < 1 || input.weekday > 7) return "Неверный день недели.";
-  if (input.pairIndex < 1 || input.pairIndex > 12) return "Неверный номер пары.";
-  if (!isValidTime(input.startTime) || !isValidTime(input.endTime)) {
-    return "Время указывается в формате ЧЧ:ММ.";
-  }
-  return null;
-}
-
-/**
- * Создаёт или перезаписывает пару в ячейке (день × номер пары).
- * Ячейка уникальна в пределах пользователя, поэтому используем UPSERT:
- * повторное сохранение той же ячейки не плодит дубли, а обновляет содержимое.
- */
-export async function saveScheduleSlot(
-  input: ScheduleSlotInput,
-): Promise<ActionResult<{ id: string }>> {
-  return guard(async (userId) => {
-    const error = validateSlot(input);
-    if (error) return failure(error);
-
-    const client = await db();
-    const id = createId("slot");
-
-    await client.execute({
-      sql: `INSERT INTO schedule_slots
-              (id, user_id, weekday, pair_index, subject, room, teacher, start_time, end_time, color)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(user_id, weekday, pair_index) DO UPDATE SET
-              subject    = excluded.subject,
-              room       = excluded.room,
-              teacher    = excluded.teacher,
-              start_time = excluded.start_time,
-              end_time   = excluded.end_time,
-              color      = excluded.color`,
-      args: [
-        id,
-        userId,
-        input.weekday,
-        input.pairIndex,
-        input.subject.trim(),
-        input.room.trim(),
-        input.teacher.trim(),
-        input.startTime,
-        input.endTime,
-        input.color,
-      ],
-    });
-
-    revalidateStudyViews();
-    return success({ id });
-  });
-}
-
-export async function deleteScheduleSlot(id: string): Promise<ActionResult<null>> {
-  return guard(async (userId) => {
-    const client = await db();
-    await client.execute({
-      sql: `DELETE FROM schedule_slots WHERE id = ? AND user_id = ?`,
-      args: [id, userId],
-    });
-
-    revalidateStudyViews();
-    return success(null);
-  });
-}
-
-/** Очистка всего дня целиком — быстрее, чем удалять пары по одной. */
-export async function clearScheduleDay(weekday: Weekday): Promise<ActionResult<null>> {
-  return guard(async (userId) => {
-    const client = await db();
-    await client.execute({
-      sql: `DELETE FROM schedule_slots WHERE weekday = ? AND user_id = ?`,
-      args: [weekday, userId],
-    });
-
-    revalidateStudyViews();
-    return success(null);
-  });
 }
 
 // ─── Заметки ─────────────────────────────────────────────────────────────────

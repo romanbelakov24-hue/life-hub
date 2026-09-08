@@ -151,19 +151,23 @@ export interface HealthDaily {
 
 // ─── Раздел 2: учебный планер ────────────────────────────────────────────────
 
-/** Одна пара в сетке расписания. */
-export interface ScheduleSlot {
+/**
+ * Дело в календаре — на конкретную дату, не на день недели.
+ * «Повторить по неделям» при создании — это несколько независимых строк с
+ * разными датами (см. actions/events.ts), а не хранимое правило повторения:
+ * ни этот тип, ни таблица в базе о нём не знают.
+ */
+export interface CalendarEvent {
   id: string;
-  weekday: Weekday;
-  /** Номер пары, 1…8. Время по умолчанию берётся из src/config/schedule.ts. */
-  pairIndex: number;
-  subject: string;
-  room: string;
-  teacher: string;
-  /** Время начала `HH:MM`; пусто — используется дефолт для номера пары. */
+  date: IsoDate;
+  /** `HH:MM`; пусто — время не указано (дело на весь день). */
   startTime: string;
   endTime: string;
+  title: string;
+  location: string;
+  description: string;
   color: string;
+  createdAt: string;
 }
 
 export interface Note {

@@ -10,11 +10,15 @@
  * Многопользовательский режим (users/sessions + user_id везде): ALTER_STATEMENTS
  * добавляют user_id как обычную нулевую колонку — это безопасно на живой базе
  * в любой момент, старый код её просто не видит. А вот POST_ALTER_STATEMENTS
- * меняют уникальные ограничения (idx_schedule_cell, idx_expenses_import_key) и
- * пересобирают settings/health_daily под составной ключ (user_id, ...) — это уже
- * НЕСОВМЕСТИМО со старым кодом, который делает ON CONFLICT по старому ключу.
- * Поэтому POST_ALTER_STATEMENTS нельзя прогонять на проде раньше, чем туда
- * задеплоен новый код — см. предупреждение в scripts/migrate.ts.
+ * меняют уникальные ограничения (idx_expenses_import_key, categories.name),
+ * пересобирают settings/health_daily под составной ключ (user_id, ...) и вообще
+ * удаляют таблицы, которые перестал использовать код (schedule_slots) — это уже
+ * НЕСОВМЕСТИМО со старым кодом. Поэтому POST_ALTER_STATEMENTS нельзя прогонять
+ * на проде раньше, чем туда задеплоен новый код — см. предупреждение в
+ * scripts/migrate.ts. Статья расхода в этом файле безопасна для повторного
+ * запуска: каждый пункт — либо IF (NOT) EXISTS, либо пересборка с копированием
+ * текущих данных, так что прогнать миграцию ещё раз после новых изменений схемы
+ * (как эта, events вместо schedule_slots) не страшно.
  */
 
 export const SCHEMA_STATEMENTS: string[] = [
@@ -66,23 +70,27 @@ export const SCHEMA_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id)`,
 
   // ─── Учебный планер ─────────────────────────────────────────────────────────
-  `CREATE TABLE IF NOT EXISTS schedule_slots (
-     id         TEXT PRIMARY KEY,
-     weekday    INTEGER NOT NULL,
-     pair_index INTEGER NOT NULL,
-     subject    TEXT NOT NULL,
-     room       TEXT NOT NULL DEFAULT '',
-     teacher    TEXT NOT NULL DEFAULT '',
-     start_time TEXT NOT NULL DEFAULT '',
-     end_time   TEXT NOT NULL DEFAULT '',
-     color      TEXT NOT NULL DEFAULT '#7e8894'
+  // Календарь дел на конкретные даты — не еженедельная сетка. Пары самого
+  // ВШЭ синхронизируются владельцем напрямую из ЛК в Apple/Google Календарь;
+  // это место для всего остального (разовые встречи, кружки, тренировки).
+  // «Повторить по неделям» на форме создания — это просто несколько отдельных
+  // строк с разными датами, без хранимого правила повторения: см.
+  // actions/events.ts. Старая понедельная сетка (schedule_slots) удалена
+  // POST_ALTER_STATEMENTS ниже вместе с переходом на эту таблицу.
+  `CREATE TABLE IF NOT EXISTS events (
+     id          TEXT PRIMARY KEY,
+     user_id     TEXT,
+     date        TEXT NOT NULL,
+     start_time  TEXT NOT NULL DEFAULT '',
+     end_time    TEXT NOT NULL DEFAULT '',
+     title       TEXT NOT NULL,
+     location    TEXT NOT NULL DEFAULT '',
+     description TEXT NOT NULL DEFAULT '',
+     color       TEXT NOT NULL DEFAULT '#7e8894',
+     created_at  TEXT NOT NULL
    )`,
 
-  // В одну ячейку сетки (день × пара) помещается ровно один предмет.
-  // До многопользовательского режима — глобально; после POST_ALTER_STATEMENTS
-  // этот индекс пересобирается на (user_id, weekday, pair_index).
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_cell
-     ON schedule_slots(weekday, pair_index)`,
+  `CREATE INDEX IF NOT EXISTS idx_events_user_date ON events(user_id, date)`,
 
   `CREATE TABLE IF NOT EXISTS notes (
      id         TEXT PRIMARY KEY,
@@ -172,7 +180,6 @@ export const ALTER_STATEMENTS: string[] = [
 
   `ALTER TABLE expenses ADD COLUMN user_id TEXT`,
   `ALTER TABLE categories ADD COLUMN user_id TEXT`,
-  `ALTER TABLE schedule_slots ADD COLUMN user_id TEXT`,
   `ALTER TABLE notes ADD COLUMN user_id TEXT`,
   `ALTER TABLE tasks ADD COLUMN user_id TEXT`,
   `ALTER TABLE incomes ADD COLUMN user_id TEXT`,
@@ -200,11 +207,9 @@ export const POST_ALTER_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_tasks_user_done ON tasks(user_id, done, due_date)`,
   `CREATE INDEX IF NOT EXISTS idx_incomes_user_date ON incomes(user_id, date DESC)`,
 
-  // Ячейка сетки расписания уникальна в пределах пользователя, не глобально —
-  // иначе два человека не смогут оба поставить пару по понедельникам первой парой.
-  `DROP INDEX IF EXISTS idx_schedule_cell`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_cell
-     ON schedule_slots(user_id, weekday, pair_index)`,
+  // Понедельная сетка пар уступила место календарю на реальных датах (таблица
+  // events выше) — старые данные раздела, по решению владельца, не переносятся.
+  `DROP TABLE IF EXISTS schedule_slots`,
 
   // categories.name UNIQUE была глобальной ("Еда" — на всё приложение, не на
   // пользователя) — двум пользователям было бы физически невозможно завести

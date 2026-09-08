@@ -51,8 +51,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/schedule",
-    label: "Расписание",
-    shortLabel: "Пары",
+    label: "Календарь",
+    shortLabel: "Дела",
     icon: CalendarDays,
     section: "study",
     primary: true,

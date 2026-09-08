@@ -4,75 +4,29 @@ import type { Row } from "@libsql/client";
 
 import { db } from "@/lib/db/client";
 import { bool, num, str, strOrNull } from "@/lib/db/rows";
-import type { IsoDate, Note, ScheduleSlot, Task, Weekday } from "@/lib/types";
+import type { IsoDate, Note, Task } from "@/lib/types";
 
 /**
- * Чтение данных учебного планера: расписание, заметки, задачи.
+ * Чтение данных учебного планера: заметки, задачи.
  * Как и в expenses.ts — только выборки, без бизнес-логики.
  *
  * Каждая функция принимает userId первым параметром и фильтрует им же.
  */
 
-// ─── Расписание ──────────────────────────────────────────────────────────────
-
-function mapSlot(row: Row): ScheduleSlot {
-  return {
-    id: str(row, "id"),
-    weekday: num(row, "weekday", 1) as Weekday,
-    pairIndex: num(row, "pair_index", 1),
-    subject: str(row, "subject"),
-    room: str(row, "room"),
-    teacher: str(row, "teacher"),
-    startTime: str(row, "start_time"),
-    endTime: str(row, "end_time"),
-    color: str(row, "color"),
-  };
-}
-
-/** Вся сетка расписания разом — она маленькая, пагинация не нужна. */
-export async function listScheduleSlots(userId: string): Promise<ScheduleSlot[]> {
-  const client = await db();
-  const result = await client.execute({
-    sql: `SELECT id, weekday, pair_index, subject, room, teacher, start_time, end_time, color
-            FROM schedule_slots
-           WHERE user_id = ?
-           ORDER BY weekday ASC, pair_index ASC`,
-    args: [userId],
-  });
-
-  return result.rows.map(mapSlot);
-}
-
-/** Пары конкретного дня — для виджета «Сегодня» на обзоре. */
-export async function listScheduleForWeekday(
-  userId: string,
-  weekday: Weekday,
-): Promise<ScheduleSlot[]> {
-  const client = await db();
-  const result = await client.execute({
-    sql: `SELECT id, weekday, pair_index, subject, room, teacher, start_time, end_time, color
-            FROM schedule_slots
-           WHERE user_id = ? AND weekday = ?
-           ORDER BY pair_index ASC`,
-    args: [userId, weekday],
-  });
-
-  return result.rows.map(mapSlot);
-}
-
 /**
- * Уникальные названия предметов из расписания.
- * Используются как подсказки при привязке заметок и задач к предмету —
- * чтобы не приходилось каждый раз печатать название вручную.
+ * Уникальные названия предметов, уже встречавшиеся в заметках и задачах —
+ * подсказки при заполнении поля «предмет», чтобы не печатать одно и то же
+ * название каждый раз заново. Раньше источником было расписание пар; после
+ * перехода на календарь дел источник — сами заметки и задачи.
  */
 export async function listSubjects(userId: string): Promise<string[]> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT DISTINCT subject
-            FROM schedule_slots
-           WHERE user_id = ? AND subject <> ''
-           ORDER BY subject ASC`,
-    args: [userId],
+    sql: `SELECT subject FROM notes WHERE user_id = ? AND subject <> ''
+          UNION
+          SELECT subject FROM tasks WHERE user_id = ? AND subject <> ''
+          ORDER BY subject ASC`,
+    args: [userId, userId],
   });
 
   return result.rows.map((row) => str(row, "subject"));

@@ -1,35 +1,69 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/layout/app-shell";
-import { ScheduleGrid } from "@/components/study/schedule-grid";
+import { EventCalendar } from "@/components/study/event-calendar";
 import { requireUser } from "@/lib/auth/user";
-import { listScheduleSlots } from "@/lib/queries/study";
-import { todayIso, weekdayOf, WEEKDAY_NAMES } from "@/lib/utils/date";
+import { listEventsInRange } from "@/lib/queries/events";
+import {
+  endOfMonth,
+  endOfWeek,
+  monthKeyOf,
+  startOfMonth,
+  startOfWeek,
+  todayIso,
+} from "@/lib/utils/date";
 
 /**
- * Страница «Расписание» — сетка пар на неделю.
- * Вся интерактивность (выбор дня, форма пары) живёт в ScheduleGrid.
+ * Страница «Календарь» — дела на конкретные даты, не еженедельная сетка.
+ * Пары ВШЭ сюда не попадают: они синхронизируются владельцем напрямую из ЛК
+ * в Apple/Google Календарь. Вся интерактивность живёт в EventCalendar.
  */
 
-export const metadata: Metadata = { title: "Расписание" };
+export const metadata: Metadata = { title: "Календарь" };
 
 export const dynamic = "force-dynamic";
 
-export default async function SchedulePage() {
+interface SchedulePageProps {
+  searchParams: Promise<{ month?: string }>;
+}
+
+/** `2026-09` из URL -> первое число месяца. Мусор в параметре игнорируем. */
+function resolveMonthAnchor(monthParam: string | undefined, today: string): string {
+  if (monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)) {
+    return `${monthParam}-01`;
+  }
+  return startOfMonth(today);
+}
+
+export default async function SchedulePage({ searchParams }: SchedulePageProps) {
   const user = await requireUser();
+  const params = await searchParams;
+
   const today = todayIso();
-  const todayWeekday = weekdayOf(today);
-  const slots = await listScheduleSlots(user.id);
+  const monthAnchor = resolveMonthAnchor(params.month, today);
+
+  // Сетка календаря захватывает целые недели по краям месяца — те же границы,
+  // что считает сам EventCalendar, чтобы дела на первой и последней неделе не
+  // потерялись.
+  const gridStart = startOfWeek(startOfMonth(monthAnchor));
+  const gridEnd = endOfWeek(endOfMonth(monthAnchor));
+
+  const events = await listEventsInRange(user.id, gridStart, gridEnd);
 
   return (
     <>
       <PageHeader
         eyebrow="Учёба"
-        title="Расписание"
-        description={`Сегодня ${WEEKDAY_NAMES[todayWeekday].toLowerCase()} · нажмите на ячейку, чтобы добавить или изменить пару`}
+        title="Календарь"
+        description="Разовые встречи, кружки и дедлайны — расписание ВШЭ идёт отдельно, из ЛК"
       />
 
-      <ScheduleGrid slots={slots} todayWeekday={todayWeekday} />
+      <EventCalendar
+        monthAnchor={monthAnchor}
+        events={events}
+        today={today}
+        currentMonthKey={monthKeyOf(today)}
+      />
     </>
   );
 }

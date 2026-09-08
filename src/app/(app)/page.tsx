@@ -5,13 +5,9 @@ import { TasksCard } from "@/components/overview/tasks-card";
 import { TodayCard } from "@/components/overview/today-card";
 import { requireUser } from "@/lib/auth/user";
 import { buildCategoryBreakdown, sumExpenses } from "@/lib/analytics/expenses";
+import { listUpcomingEvents } from "@/lib/queries/events";
 import { listExpensesInRange, listRecentExpenses, sumExpensesInRange } from "@/lib/queries/expenses";
-import {
-  getTaskCounters,
-  listRecentNotes,
-  listScheduleForWeekday,
-  listTasksDueBy,
-} from "@/lib/queries/study";
+import { getTaskCounters, listRecentNotes, listTasksDueBy } from "@/lib/queries/study";
 import {
   addDays,
   endOfMonth,
@@ -45,7 +41,7 @@ export default async function OverviewPage() {
     monthExpenses,
     todayTotal,
     recentExpenses,
-    todaySlots,
+    upcomingEvents,
     upcomingTasks,
     taskCounters,
     recentNotes,
@@ -53,7 +49,7 @@ export default async function OverviewPage() {
     listExpensesInRange(user.id, monthStart, monthEnd),
     sumExpensesInRange(user.id, today, today),
     listRecentExpenses(user.id, 4),
-    listScheduleForWeekday(user.id, todayWeekday),
+    listUpcomingEvents(user.id, today, 4),
     // «Ближайшие» — всё, что просрочено, плюс горизонт в неделю вперёд.
     listTasksDueBy(user.id, addDays(today, 7), 5),
     getTaskCounters(user.id, today),
@@ -82,7 +78,7 @@ export default async function OverviewPage() {
         </div>
 
         <div className="lg:col-span-2">
-          <TodayCard slots={todaySlots} weekday={todayWeekday} index={1} />
+          <TodayCard events={upcomingEvents} today={today} index={1} />
         </div>
 
         <div className="lg:col-span-3">

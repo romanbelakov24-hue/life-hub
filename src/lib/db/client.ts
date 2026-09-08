@@ -54,16 +54,21 @@ async function createDbClient(): Promise<Client> {
   // В разработке — локальный SQLite-файл: данные не синхронизируются между
   // устройствами, но приложение полностью работоспособно без учётной записи.
   //
-  // Специфier собран из переменной, а не написан строкой: сборщик Cloudflare
-  // Workers (esbuild через OpenNext) статически находит literal-импорты и
-  // пытается включить их в бандл заранее — а node-сборка @libsql/client тянет
-  // зависимость, которая на Workers не резолвится (нет локальных файлов и
-  // смысла в этой ветке на серверлес-платформе вообще нет). Non-literal
-  // import — стандартный приём, чтобы бандлер оставил вызов как есть и не
-  // трогал этот путь при сборке; в реальности этот код выполняется только
-  // в `next dev`/`next start` на обычном Node.js.
-  const nodeOnlyPackage = "@libsql/client";
-  const { createClient } = await import(nodeOnlyPackage);
+  // Импорт спрятан внутри Function(...), а не написан обычным `import(...)`:
+  // и webpack (next dev/build), и esbuild (сборка под Cloudflare Workers через
+  // OpenNext) статически разбирают ast обычного динамического импорта и
+  // пытаются подключить его в бандл заранее — а node-сборка @libsql/client
+  // тянет зависимость с условным экспортом "workerd", которую попытка
+  // забандлить эту ветку заранее просто ломает (в проде она не резолвится, а
+  // сама ветка на серверлес-платформе никогда не выполняется). Через
+  // Function(...) вызов рождается только в рантайме, ни один из бандлеров его
+  // не видит на этапе сборки, и оба оставляют настоящий, обычный import()
+  // выполняться так, как выполнил бы его чистый Node.js.
+  const importNodeOnly = new Function(
+    "specifier",
+    "return import(specifier)",
+  ) as (specifier: string) => Promise<typeof import("@libsql/client")>;
+  const { createClient } = await importNodeOnly("@libsql/client");
   return createClient({ url: "file:local.db" });
 }
 

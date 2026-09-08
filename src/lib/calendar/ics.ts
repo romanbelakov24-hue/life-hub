@@ -10,26 +10,15 @@
  * календаре, обратно не приедут — подписка доступна только для чтения.
  *
  * Что попадает в ленту:
- *   • пары из расписания — отдельным событием на каждый реальный день в
- *     окне ~3 недели назад / ~12 недель вперёд (см. WINDOW_DAYS_*);
+ *   • дела из календаря — у каждого своя настоящая дата, поэтому одно дело —
+ *     ровно одно VEVENT, без повторения и без окна дат;
  *   • задачи с дедлайном — событиями на весь день.
  *
- * Почему пары не одной повторяющейся RRULE-серией, как раньше: при каждом
- * перечитывании подписки клиент видит мастер-событие с тем же UID, но новым
- * DTSTAMP (лента генерируется заново на каждый запрос). У части клиентов —
- * замечено на Apple Calendar — это приводит не к обновлению серии на месте,
- * а к добавлению ещё одной: пары задваиваются на будущих неделях при каждой
- * синхронизации. Отдельные события с датой в UID (`${slot.id}-${dateIso}`)
- * идемпотентны: для того же дня при следующем запросе — тот же UID, клиент
- * обновляет событие на месте, а не создаёт копию.
+ * Пары ВШЭ сюда не попадают — они синхронизируются у владельца напрямую из
+ * ЛК в Apple/Google Календарь, отдельным путём, минуя life hub.
  */
 
-import { PAIRS_PER_DAY, resolvePairTime } from "@/config/schedule";
-import type { ScheduleSlot, Task, Weekday } from "@/lib/types";
-
-/** Насколько далеко назад и вперёд от сегодня генерировать события пар. */
-const WINDOW_DAYS_BACK = 21;
-const WINDOW_DAYS_FORWARD = 84;
+import type { CalendarEvent, Task } from "@/lib/types";
 
 // ─── Примитивы формата ───────────────────────────────────────────────────────
 
@@ -80,15 +69,9 @@ function foldLine(line: string): string {
 }
 
 /** `2026-09-01` + `08:30` → `20260901T083000` (локальное «плавающее» время). */
-function toFloatingDateTime(date: Date, time: string): string {
+function toFloatingDateTime(iso: string, time: string): string {
   const [hours = "0", minutes = "0"] = time.split(":");
-
-  return (
-    `${date.getFullYear()}` +
-    `${String(date.getMonth() + 1).padStart(2, "0")}` +
-    `${String(date.getDate()).padStart(2, "0")}` +
-    `T${hours.padStart(2, "0")}${minutes.padStart(2, "0")}00`
-  );
+  return `${toDateValue(iso)}T${hours.padStart(2, "0")}${minutes.padStart(2, "0")}00`;
 }
 
 /** `2026-09-05` → `20260905` — для событий на весь день. */
@@ -99,36 +82,6 @@ function toDateValue(iso: string): string {
 /** Метка формирования файла — всегда в UTC. */
 function timestampUtc(): string {
   return `${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
-}
-
-/** `YYYY-MM-DD` в терминах локального времени (не UTC — важно на границе суток). */
-function toIsoDate(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-/** ISO-номер дня недели для даты (1 = понедельник ... 7 = воскресенье). */
-function isoWeekday(date: Date): Weekday {
-  return (((date.getDay() + 6) % 7) + 1) as Weekday;
-}
-
-/**
- * Даты в `[from, to]`, попадающие на нужный день недели, с шагом в неделю.
- *
- * Так вместо RRULE каждая пара превращается в набор конкретных дней в окне —
- * см. комментарий в начале файла о том, зачем это нужно.
- */
-function datesForWeekday(weekday: Weekday, from: Date, to: Date): Date[] {
-  const offset = ((weekday - isoWeekday(from)) % 7 + 7) % 7;
-  const first = new Date(from);
-  first.setDate(first.getDate() + offset);
-
-  const dates: Date[] = [];
-  for (const date = first; date <= to; date.setDate(date.getDate() + 7)) {
-    dates.push(new Date(date));
-  }
-  return dates;
 }
 
 /** Прибавляет день: DTEND у события на весь день не включается в интервал. */
@@ -145,23 +98,18 @@ function nextDay(iso: string): string {
 // ─── Сборка событий ──────────────────────────────────────────────────────────
 
 interface BuildOptions {
-  slots: ScheduleSlot[];
+  events: CalendarEvent[];
   tasks: Task[];
-  /**
-   * За сколько минут до начала пары напомнить.
-   * Apple Calendar уважает VALARM в подписке, если при добавлении не поставить
-   * галочку «Удалить напоминания». Google Calendar напоминания из чужих лент
-   * игнорирует и применяет собственные настройки календаря.
-   */
-  lessonReminderMinutes?: number;
+  /** За сколько минут до начала дела напомнить (только у дел с указанным временем). */
+  eventReminderMinutes?: number;
   /** За сколько часов до конца дня напомнить о дедлайне задачи. */
   taskReminderHours?: number;
 }
 
 export function buildCalendar({
-  slots,
+  events,
   tasks,
-  lessonReminderMinutes = 15,
+  eventReminderMinutes = 15,
   taskReminderHours = 3,
 }: BuildOptions): string {
   const stamp = timestampUtc();
@@ -172,61 +120,54 @@ export function buildCalendar({
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:life hub",
-    "X-WR-CALDESC:Расписание пар и дедлайны задач",
+    "X-WR-CALDESC:Дела и дедлайны задач",
     // Подсказка клиенту, как часто перечитывать ленту. Apple ориентируется на
     // REFRESH-INTERVAL, Google — на собственное расписание (обычно раз в сутки).
     "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
     "X-PUBLISHED-TTL:PT1H",
   ];
 
-  // ─── Пары: по одному событию на каждый реальный день в окне ────────────────
-  const windowStart = new Date();
-  windowStart.setHours(0, 0, 0, 0);
-  windowStart.setDate(windowStart.getDate() - WINDOW_DAYS_BACK);
+  // ─── Дела: у каждого уже своя настоящая дата — ровно одно VEVENT на дело ────
+  for (const event of events) {
+    if (!event.title.trim()) continue;
 
-  const windowEnd = new Date(windowStart);
-  windowEnd.setDate(windowEnd.getDate() + WINDOW_DAYS_BACK + WINDOW_DAYS_FORWARD);
+    const description = [event.location, event.description].filter(Boolean).join("\n\n");
+    const hasTime = event.startTime !== "" && event.endTime !== "";
 
-  for (const slot of slots) {
-    if (!slot.subject.trim()) continue;
-    if (slot.pairIndex < 1 || slot.pairIndex > PAIRS_PER_DAY) continue;
+    lines.push("BEGIN:VEVENT", `UID:${event.id}@life-hub`, `DTSTAMP:${stamp}`);
 
-    const { start, end } = resolvePairTime(slot.pairIndex, slot.startTime, slot.endTime);
-    if (!start || !end) continue;
-
-    const description = [slot.teacher, `${slot.pairIndex}-я пара`]
-      .filter(Boolean)
-      .join(" · ");
-
-    for (const date of datesForWeekday(slot.weekday, windowStart, windowEnd)) {
-      const dateIso = toIsoDate(date);
-
+    if (hasTime) {
+      // Без TZID и без Z — «плавающее» время: 18:00 значит 18:00 по часам
+      // устройства, где бы оно ни находилось.
       lines.push(
-        "BEGIN:VEVENT",
-        // Дата в UID — не дублирующийся идентификатор одной и той же пары в
-        // конкретный день: тот же день при следующем запросе ленты даёт тот же
-        // UID, и клиент обновляет событие на месте, а не создаёт копию.
-        `UID:${slot.id}-${dateIso}@life-hub`,
-        `DTSTAMP:${stamp}`,
-        // Без TZID и без Z — «плавающее» время. Для расписания пар это правильно:
-        // 08:30 означает 08:30 по часам устройства, где бы оно ни находилось.
-        `DTSTART:${toFloatingDateTime(date, start)}`,
-        `DTEND:${toFloatingDateTime(date, end)}`,
-        `SUMMARY:${escapeText(slot.subject)}`,
+        `DTSTART:${toFloatingDateTime(event.date, event.startTime)}`,
+        `DTEND:${toFloatingDateTime(event.date, event.endTime)}`,
       );
+    } else {
+      lines.push(
+        `DTSTART;VALUE=DATE:${toDateValue(event.date)}`,
+        `DTEND;VALUE=DATE:${nextDay(event.date)}`,
+      );
+    }
 
-      if (slot.room.trim()) lines.push(`LOCATION:${escapeText(slot.room)}`);
-      if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+    lines.push(`SUMMARY:${escapeText(event.title)}`);
 
+    if (event.location.trim()) lines.push(`LOCATION:${escapeText(event.location)}`);
+    if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
+
+    // Напоминание — только если у дела есть время: для события на весь день
+    // «за 15 минут до полуночи» не несёт смысла.
+    if (hasTime) {
       lines.push(
         "BEGIN:VALARM",
         "ACTION:DISPLAY",
-        `TRIGGER:-PT${lessonReminderMinutes}M`,
-        `DESCRIPTION:${escapeText(slot.subject)}`,
+        `TRIGGER:-PT${eventReminderMinutes}M`,
+        `DESCRIPTION:${escapeText(event.title)}`,
         "END:VALARM",
-        "END:VEVENT",
       );
     }
+
+    lines.push("END:VEVENT");
   }
 
   // ─── Дедлайны задач: события на весь день ───────────────────────────────────

@@ -76,7 +76,7 @@ export async function createUser(input: {
 const LEGACY_TABLES = [
   "expenses",
   "categories",
-  "schedule_slots",
+  "events",
   "notes",
   "tasks",
   "incomes",
