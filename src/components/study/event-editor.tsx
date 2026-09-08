@@ -25,6 +25,15 @@ export interface EventEditorTarget {
   date: IsoDate;
   /** Существующее дело, если редактируем, иначе новое. */
   event: CalendarEvent | null;
+  /** Клик по времени в сетке — час начала подставляется сразу, конец — +1 час. */
+  defaultStartTime?: string;
+}
+
+/** "14:30" + час -> "15:30", с переносом через полночь. */
+function addHour(time: string): string {
+  const [hours = "0", minutes = "0"] = time.split(":");
+  const total = (Number(hours) * 60 + Number(minutes) + 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 interface EventEditorProps {
@@ -36,17 +45,18 @@ export function EventEditor({ target, onClose }: EventEditorProps) {
   if (!target) return null;
 
   // key пересоздаёт форму при смене цели — иначе поля новой формы унаследуют
-  // значения от предыдущего дела.
-  return <EventForm key={target.event?.id ?? target.date} target={target} onClose={onClose} />;
+  // значения от предыдущего дела (или от предыдущего слота в сетке времени).
+  const key = target.event?.id ?? `${target.date}-${target.defaultStartTime ?? ""}`;
+  return <EventForm key={key} target={target} onClose={onClose} />;
 }
 
 function EventForm({ target, onClose }: { target: EventEditorTarget; onClose: () => void }) {
-  const { event, date } = target;
+  const { event, date, defaultStartTime } = target;
 
   const [draft, setDraft] = useState({
     date: event?.date ?? date,
-    startTime: event?.startTime ?? "",
-    endTime: event?.endTime ?? "",
+    startTime: event?.startTime ?? defaultStartTime ?? "",
+    endTime: event?.endTime ?? (defaultStartTime ? addHour(defaultStartTime) : ""),
     title: event?.title ?? "",
     location: event?.location ?? "",
     description: event?.description ?? "",

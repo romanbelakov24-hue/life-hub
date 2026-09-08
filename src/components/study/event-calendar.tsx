@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, MapPin, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { EventEditor, type EventEditorTarget } from "@/components/study/event-editor";
+import { TimeGrid } from "@/components/study/time-grid";
 import type { CalendarEvent, IsoDate } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -13,64 +14,60 @@ import {
   endOfWeek,
   formatDayMonth,
   formatMonthTitle,
-  formatRelativeDay,
   startOfMonth,
   startOfWeek,
+  todayIso,
+  WEEKDAY_NAMES,
   WEEKDAY_SHORT,
+  weekdayOf,
 } from "@/lib/utils/date";
 
 /**
- * Календарь дел: месячная сетка сверху, список дел выбранного дня снизу.
+ * Календарь дел — три вида, как в Apple Calendar: месяц, неделя, день.
  *
- * Месяц живёт в URL (?month=2026-10) — как у страницы расходов: ссылку на
- * конкретный месяц можно сохранить, «назад» в браузере работает предсказуемо.
- * Выбранный день внутри месяца — состояние компонента: сетка уже содержит все
- * дела на экране, повторный запрос к серверу за этим не нужен.
+ * Вид и дата-якорь живут в URL (?view=day&date=2026-09-08) — тот же принцип,
+ * что у страницы расходов: ссылку можно сохранить, «назад» в браузере работает
+ * предсказуемо, а сервер знает заранее, какой диапазон дел прислать.
+ *
+ * Месяц — только сетка с точками-индикаторами; клик по числу дня «приближает»
+ * до дневного вида, где уже видно почасовую раскладку — так же, как в Apple
+ * Calendar тап по дню в месяце открывает день, а не разворачивает список тут же.
  */
 
+export type CalendarView = "month" | "week" | "day";
+
 interface EventCalendarProps {
-  monthAnchor: IsoDate;
+  view: CalendarView;
+  anchorDate: IsoDate;
   events: CalendarEvent[];
   today: IsoDate;
-  currentMonthKey: string;
 }
 
-export function EventCalendar({ monthAnchor, events, today, currentMonthKey }: EventCalendarProps) {
+const VIEW_LABELS: Record<CalendarView, string> = { day: "День", week: "Неделя", month: "Месяц" };
+
+export function EventCalendar({ view, anchorDate, events, today }: EventCalendarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const monthKey = monthAnchor.slice(0, 7);
-  const isCurrentMonth = monthKey === currentMonthKey;
-
-  // День по умолчанию: сегодня, если он в этом месяце, иначе первое число.
-  const [selectedDate, setSelectedDate] = useState<IsoDate>(
-    isCurrentMonth ? today : startOfMonth(monthAnchor),
-  );
   const [editorTarget, setEditorTarget] = useState<EventEditorTarget | null>(null);
 
-  function goToMonth(offset: number): void {
-    const [year = 2026, month = 1] = monthAnchor.split("-").map(Number);
-    const date = new Date(year, month - 1 + offset, 1);
-    const nextMonthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
+  function navigate(nextView: CalendarView, nextDate: IsoDate): void {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("month", nextMonthKey);
+    params.set("view", nextView);
+    params.set("date", nextDate);
     router.push(`${pathname}?${params.toString()}`);
   }
 
-  // Сетка накрывает целые недели: с понедельника недели, где 1-е число,
-  // по воскресенье недели, где последнее число месяца — иначе первая и
-  // последняя строка сетки были бы обрезаны с одной стороны.
-  const gridDays = useMemo(() => {
-    const gridStart = startOfWeek(startOfMonth(monthAnchor));
-    const gridEnd = endOfWeek(endOfMonth(monthAnchor));
-    const days: IsoDate[] = [];
-    for (let cursor = gridStart; cursor <= gridEnd; cursor = addDays(cursor, 1)) {
-      days.push(cursor);
+  function goBy(offset: number): void {
+    if (view === "month") {
+      const [year = 2026, month = 1] = anchorDate.split("-").map(Number);
+      const date = new Date(year, month - 1 + offset, 1);
+      navigate(view, `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`);
+      return;
     }
-    return days;
-  }, [monthAnchor]);
+    navigate(view, addDays(anchorDate, view === "week" ? offset * 7 : offset));
+  }
 
   const eventsByDate = useMemo(() => {
     const map = new Map<IsoDate, CalendarEvent[]>();
@@ -82,162 +79,205 @@ export function EventCalendar({ monthAnchor, events, today, currentMonthKey }: E
     return map;
   }, [events]);
 
-  const selectedEvents = eventsByDate.get(selectedDate) ?? [];
+  function openEditorFor(event: CalendarEvent): void {
+    setEditorTarget({ date: event.date, event });
+  }
+
+  function openNewEditor(date: IsoDate, time = ""): void {
+    setEditorTarget({ date, event: null, defaultStartTime: time });
+  }
 
   return (
     <>
-      <div data-spotlight className="spotlight relative rounded-[14px] border border-line bg-surface/85 p-3 backdrop-blur-xl sm:p-4">
-        {/* Навигация по месяцам */}
-        <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {/* Навигация по периоду */}
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label="Предыдущий месяц"
-            onClick={() => goToMonth(-1)}
+            aria-label="Назад"
+            onClick={() => goBy(-1)}
             className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-colors duration-200 hover:bg-surface-2 hover:text-ink"
           >
             <ChevronLeft size={18} />
           </button>
 
-          <p className="text-[15px] font-semibold text-ink">{formatMonthTitle(monthAnchor)}</p>
+          <button
+            type="button"
+            onClick={() => navigate(view, todayIso())}
+            className="cursor-pointer whitespace-nowrap px-1 text-[15px] font-semibold text-ink hover:text-accent"
+          >
+            {formatViewTitle(view, anchorDate)}
+          </button>
 
           <button
             type="button"
-            aria-label="Следующий месяц"
-            onClick={() => goToMonth(1)}
+            aria-label="Вперёд"
+            onClick={() => goBy(1)}
             className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-colors duration-200 hover:bg-surface-2 hover:text-ink"
           >
             <ChevronRight size={18} />
           </button>
         </div>
 
-        {/* Заголовки дней недели */}
-        <div className="grid grid-cols-7 gap-1">
-          {([1, 2, 3, 4, 5, 6, 7] as const).map((weekday) => (
-            <p
-              key={weekday}
-              className="eyebrow py-1.5 text-center !text-[10px]"
-              aria-hidden
-            >
-              {WEEKDAY_SHORT[weekday]}
-            </p>
-          ))}
-        </div>
-
-        {/* Сетка дней */}
-        <div className="grid grid-cols-7 gap-1">
-          {gridDays.map((day) => {
-            const inMonth = day.slice(0, 7) === monthKey;
-            const isToday = day === today;
-            const isSelected = day === selectedDate;
-            const dayEvents = eventsByDate.get(day) ?? [];
-
-            return (
+        <div className="flex items-center gap-2">
+          {/* Переключатель вида */}
+          <div role="tablist" aria-label="Вид календаря" className="flex rounded-full border border-line bg-surface p-1">
+            {(["day", "week", "month"] as const).map((option) => (
               <button
-                key={day}
+                key={option}
                 type="button"
-                onClick={() => setSelectedDate(day)}
+                role="tab"
+                aria-selected={view === option}
+                onClick={() => navigate(option, anchorDate)}
                 className={cn(
-                  "flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px]",
-                  "transition-colors duration-200",
-                  isSelected
-                    ? "bg-accent text-accent-ink"
-                    : isToday
-                      ? "bg-accent-soft text-accent"
-                      : inMonth
-                        ? "text-ink hover:bg-surface-2"
-                        : "text-ink-faint hover:bg-surface-2",
+                  "cursor-pointer rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors duration-200",
+                  view === option ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink",
                 )}
               >
-                <span className="tabular text-[13px] font-medium leading-none">
-                  {Number(day.slice(8, 10))}
-                </span>
-
-                {dayEvents.length > 0 ? (
-                  <span className="flex gap-[3px]" aria-hidden>
-                    {dayEvents.slice(0, 3).map((event) => (
-                      <span
-                        key={event.id}
-                        className="h-[5px] w-[5px] rounded-full"
-                        style={{
-                          backgroundColor: isSelected ? "currentColor" : event.color,
-                        }}
-                      />
-                    ))}
-                  </span>
-                ) : (
-                  <span className="h-[5px]" aria-hidden />
-                )}
+                {VIEW_LABELS[option]}
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Список дел выбранного дня */}
-      <div
-        data-spotlight
-        className="spotlight relative mt-4 rounded-[14px] border border-line bg-surface/85 p-4 backdrop-blur-xl"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="eyebrow mb-1">{formatRelativeDay(selectedDate, today)}</p>
-            <p className="text-[13px] text-ink-muted">{formatDayMonth(selectedDate)}</p>
+            ))}
           </div>
 
           <button
             type="button"
-            onClick={() => setEditorTarget({ date: selectedDate, event: null })}
+            onClick={() => openNewEditor(view === "week" ? clampToWeek(anchorDate, today) : anchorDate)}
             className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-accent px-3.5 text-[13px] font-medium text-accent-ink transition-[filter] duration-200 hover:brightness-110"
           >
             <Plus size={15} />
-            Добавить
+            <span className="hidden sm:inline">Добавить</span>
           </button>
         </div>
-
-        {selectedEvents.length === 0 ? (
-          <p className="mt-4 rounded-[10px] bg-surface-2 px-3 py-3 text-center text-[12px] text-ink-muted">
-            На этот день ничего не запланировано
-          </p>
-        ) : (
-          <ul className="mt-4 flex flex-col gap-1.5">
-            {selectedEvents.map((event) => (
-              <li key={event.id}>
-                <button
-                  type="button"
-                  onClick={() => setEditorTarget({ date: event.date, event })}
-                  className="flex w-full cursor-pointer items-start gap-3 rounded-[10px] border border-line bg-surface px-3 py-2.5 text-left transition-colors duration-200 hover:bg-surface-2"
-                  style={{ borderLeft: `3px solid ${event.color}` }}
-                >
-                  <div className="w-[46px] shrink-0 pt-0.5">
-                    {event.startTime ? (
-                      <>
-                        <p className="tabular text-[12px] font-medium text-ink">
-                          {event.startTime}
-                        </p>
-                        <p className="tabular text-[11px] text-ink-faint">{event.endTime}</p>
-                      </>
-                    ) : (
-                      <p className="text-[11px] text-ink-faint">Весь день</p>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-ink">{event.title}</p>
-                    {event.location ? (
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-ink-muted">
-                        <MapPin size={11} className="shrink-0" />
-                        {event.location}
-                      </p>
-                    ) : null}
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
+
+      {view === "month" ? (
+        <MonthGrid
+          anchorDate={anchorDate}
+          eventsByDate={eventsByDate}
+          today={today}
+          onOpenDay={(date) => navigate("day", date)}
+        />
+      ) : (
+        <TimeGrid
+          days={view === "day" ? [anchorDate] : weekDays(anchorDate)}
+          eventsByDate={eventsByDate}
+          today={today}
+          onEventClick={openEditorFor}
+          onSlotClick={openNewEditor}
+        />
+      )}
 
       <EventEditor target={editorTarget} onClose={() => setEditorTarget(null)} />
     </>
+  );
+}
+
+// ─── Заголовок периода ─────────────────────────────────────────────────────────
+
+function formatViewTitle(view: CalendarView, anchorDate: IsoDate): string {
+  if (view === "month") return formatMonthTitle(anchorDate);
+  if (view === "day") {
+    return `${WEEKDAY_NAMES[weekdayOf(anchorDate)]}, ${formatDayMonth(anchorDate)}`;
+  }
+
+  const start = startOfWeek(anchorDate);
+  const end = endOfWeek(anchorDate);
+  return start.slice(0, 7) === end.slice(0, 7)
+    ? `${Number(start.slice(8, 10))}–${formatDayMonth(end)}`
+    : `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
+}
+
+function weekDays(anchorDate: IsoDate): IsoDate[] {
+  const start = startOfWeek(anchorDate);
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+/** Для кнопки «Добавить» в недельном виде — сегодня, если он в этой неделе, иначе понедельник. */
+function clampToWeek(anchorDate: IsoDate, today: IsoDate): IsoDate {
+  const days = weekDays(anchorDate);
+  return days.includes(today) ? today : (days[0] ?? anchorDate);
+}
+
+// ─── Месяц ───────────────────────────────────────────────────────────────────
+
+function MonthGrid({
+  anchorDate,
+  eventsByDate,
+  today,
+  onOpenDay,
+}: {
+  anchorDate: IsoDate;
+  eventsByDate: Map<IsoDate, CalendarEvent[]>;
+  today: IsoDate;
+  onOpenDay: (date: IsoDate) => void;
+}) {
+  const monthKey = anchorDate.slice(0, 7);
+
+  const gridDays = useMemo(() => {
+    const gridStart = startOfWeek(startOfMonth(anchorDate));
+    const gridEnd = endOfWeek(endOfMonth(anchorDate));
+    const days: IsoDate[] = [];
+    for (let cursor = gridStart; cursor <= gridEnd; cursor = addDays(cursor, 1)) {
+      days.push(cursor);
+    }
+    return days;
+  }, [anchorDate]);
+
+  return (
+    <div
+      data-spotlight
+      className="spotlight relative rounded-[14px] border border-line bg-surface/85 p-3 backdrop-blur-xl sm:p-4"
+    >
+      <div className="grid grid-cols-7 gap-1">
+        {([1, 2, 3, 4, 5, 6, 7] as const).map((weekday) => (
+          <p key={weekday} className="eyebrow py-1.5 text-center !text-[10px]" aria-hidden>
+            {WEEKDAY_SHORT[weekday]}
+          </p>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {gridDays.map((day) => {
+          const inMonth = day.slice(0, 7) === monthKey;
+          const isToday = day === today;
+          const dayEvents = eventsByDate.get(day) ?? [];
+
+          return (
+            <button
+              key={day}
+              type="button"
+              onClick={() => onOpenDay(day)}
+              className={cn(
+                "flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px]",
+                "transition-colors duration-200",
+                isToday
+                  ? "bg-accent-soft text-accent"
+                  : inMonth
+                    ? "text-ink hover:bg-surface-2"
+                    : "text-ink-faint hover:bg-surface-2",
+              )}
+            >
+              <span className="tabular text-[13px] font-medium leading-none">
+                {Number(day.slice(8, 10))}
+              </span>
+
+              {dayEvents.length > 0 ? (
+                <span className="flex gap-[3px]" aria-hidden>
+                  {dayEvents.slice(0, 3).map((event) => (
+                    <span
+                      key={event.id}
+                      className="h-[5px] w-[5px] rounded-full"
+                      style={{ backgroundColor: event.color }}
+                    />
+                  ))}
+                </span>
+              ) : (
+                <span className="h-[5px]" aria-hidden />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
