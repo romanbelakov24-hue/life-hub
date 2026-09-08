@@ -3,6 +3,7 @@ import { FileUp } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/layout/app-shell";
+import { CategoryBudgets } from "@/components/expenses/category-budgets";
 import { CategoryManager } from "@/components/expenses/category-manager";
 import { CategoryDonut } from "@/components/expenses/charts/category-donut";
 import { MonthCompare } from "@/components/expenses/charts/month-compare";
@@ -15,6 +16,7 @@ import { StatsPanel } from "@/components/expenses/stats-panel";
 import { SummaryCards } from "@/components/expenses/summary-cards";
 import { buildBudgetForecast } from "@/lib/analytics/budget";
 import {
+  buildCategoryBudgets,
   buildCategoryDetails,
   buildDailyTrend,
   buildMonthlyTrend,
@@ -112,6 +114,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
   const monthTotal = sumExpenses(expenses);
   const breakdown = buildCategoryDetails(expenses);
   const stats = computeExpenseStats(expenses, prevMonthTotal, daysElapsed);
+  const categoryBudgets = buildCategoryBudgets(categories, expenses);
 
   const forecast = buildBudgetForecast({
     income: monthIncome,
@@ -161,6 +164,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
           monthTitle={formatMonthTitle(monthAnchor)}
           isCurrentMonth={isCurrentMonth}
         />
+
+        <CategoryBudgets budgets={categoryBudgets} />
 
         {view === "list" ? (
           <ExpenseTable expenses={expenses} categories={categories} today={today} />

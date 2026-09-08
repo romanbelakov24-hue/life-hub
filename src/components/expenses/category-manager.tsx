@@ -4,7 +4,7 @@ import { Check, Loader2, Pencil, Plus, Settings2, Trash2, X } from "lucide-react
 import { useState, useTransition } from "react";
 
 import { Button, IconButton } from "@/components/ui/button";
-import { Field, TextInput } from "@/components/ui/field";
+import { AmountInput, Field, TextInput } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { getCategoryIcon, ICON_KEYS } from "@/config/icons";
 import { DEFAULT_COLOR, PALETTE } from "@/config/palette";
@@ -29,9 +29,19 @@ interface CategoryDraft {
   name: string;
   color: string;
   icon: string;
+  /** Строкой, как в поле ввода — пусто значит «без лимита». */
+  monthlyLimit: string;
 }
 
-const EMPTY_DRAFT: CategoryDraft = { name: "", color: DEFAULT_COLOR, icon: "tag" };
+const EMPTY_DRAFT: CategoryDraft = { name: "", color: DEFAULT_COLOR, icon: "tag", monthlyLimit: "" };
+
+/** "1200" -> 1200; "" -> null — то, что реально уходит в действие. */
+function parseLimitInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export function CategoryManager({ categories }: CategoryManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,11 +93,15 @@ function CategoryList({ categories }: CategoryManagerProps) {
                     name: category.name,
                     color: category.color,
                     icon: category.icon,
+                    monthlyLimit: category.monthlyLimit !== null ? String(category.monthlyLimit) : "",
                   }}
                   submitLabel="Сохранить"
                   onCancel={() => setEditingId(null)}
                   onSubmit={async (draft) => {
-                    const result = await updateCategory(category.id, draft);
+                    const result = await updateCategory(category.id, {
+                      ...draft,
+                      monthlyLimit: parseLimitInput(draft.monthlyLimit),
+                    });
                     if (result.ok) setEditingId(null);
                     return result.ok ? null : result.error;
                   }}
@@ -109,7 +123,14 @@ function CategoryList({ categories }: CategoryManagerProps) {
                 <Icon size={15} />
               </span>
 
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{category.name}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-ink">{category.name}</span>
+                {category.monthlyLimit !== null ? (
+                  <span className="block truncate text-[11px] text-ink-faint">
+                    лимит {category.monthlyLimit.toLocaleString("ru-RU")} ₽/мес
+                  </span>
+                ) : null}
+              </span>
 
               {category.isDefault ? (
                 <span className="shrink-0 text-[11px] text-ink-faint">базовая</span>
@@ -156,7 +177,10 @@ function CategoryList({ categories }: CategoryManagerProps) {
           submitLabel="Добавить"
           onCancel={() => setIsAdding(false)}
           onSubmit={async (draft) => {
-            const result = await createCategory(draft);
+            const result = await createCategory({
+              ...draft,
+              monthlyLimit: parseLimitInput(draft.monthlyLimit),
+            });
             if (result.ok) setIsAdding(false);
             return result.ok ? null : result.error;
           }}
@@ -226,6 +250,17 @@ function CategoryForm({ initial, submitLabel, onCancel, onSubmit }: CategoryForm
           )}
         </Field>
       </div>
+
+      <Field label="Лимит в месяц" hint="Необязательно — покажется в блоке «Бюджеты по категориям»">
+        {(id) => (
+          <AmountInput
+            id={id}
+            value={draft.monthlyLimit}
+            placeholder="Без лимита"
+            onChange={(event) => setDraft({ ...draft, monthlyLimit: event.target.value })}
+          />
+        )}
+      </Field>
 
       {/* Цвет */}
       <div>

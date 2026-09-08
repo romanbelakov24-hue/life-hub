@@ -112,6 +112,8 @@ export interface CategoryInput {
   name: string;
   color: string;
   icon: string;
+  /** Лимит трат в месяц; null или пустая строка от формы — лимит не задан. */
+  monthlyLimit: number | null;
 }
 
 function validateCategory(input: CategoryInput): string | null {
@@ -119,6 +121,12 @@ function validateCategory(input: CategoryInput): string | null {
   if (!name) return "Введите название категории.";
   if (name.length > 40) return "Название длиннее 40 символов.";
   if (!/^#[0-9a-f]{6}$/i.test(input.color)) return "Неверный формат цвета.";
+  if (input.monthlyLimit !== null) {
+    if (!Number.isFinite(input.monthlyLimit) || input.monthlyLimit <= 0) {
+      return "Лимит должен быть больше нуля.";
+    }
+    if (input.monthlyLimit > 100_000_000) return "Слишком большой лимит.";
+  }
   return null;
 }
 
@@ -142,9 +150,9 @@ export async function createCategory(
 
     const id = createId("cat");
     await client.execute({
-      sql: `INSERT INTO categories (id, user_id, name, color, icon, is_default, sort_order)
-            VALUES (?, ?, ?, ?, ?, 0, 100)`,
-      args: [id, userId, name, input.color, input.icon],
+      sql: `INSERT INTO categories (id, user_id, name, color, icon, is_default, sort_order, monthly_limit)
+            VALUES (?, ?, ?, ?, ?, 0, 100, ?)`,
+      args: [id, userId, name, input.color, input.icon, input.monthlyLimit],
     });
 
     revalidateExpenseViews();
@@ -162,8 +170,8 @@ export async function updateCategory(
 
     const client = await db();
     const result = await client.execute({
-      sql: `UPDATE categories SET name = ?, color = ?, icon = ? WHERE id = ? AND user_id = ?`,
-      args: [input.name.trim(), input.color, input.icon, id, userId],
+      sql: `UPDATE categories SET name = ?, color = ?, icon = ?, monthly_limit = ? WHERE id = ? AND user_id = ?`,
+      args: [input.name.trim(), input.color, input.icon, input.monthlyLimit, id, userId],
     });
 
     if (result.rowsAffected === 0) return failure("Категория не найдена.");

@@ -26,6 +26,22 @@ export interface Category {
   isDefault: boolean;
   /** Порядок отображения в списках и чипсах. */
   sortOrder: number;
+  /** Лимит трат в месяц на эту категорию. null — лимит не задан. */
+  monthlyLimit: number | null;
+}
+
+/** Категория с лимитом сопоставлена с тратами месяца — для блока «Бюджеты по категориям». */
+export interface CategoryBudgetStatus {
+  categoryId: string;
+  name: string;
+  color: string;
+  icon: string;
+  limit: number;
+  spent: number;
+  /** limit - spent; отрицательное — перерасход. */
+  remaining: number;
+  /** Доля потраченного от лимита, 0…100+ (может быть больше 100 при перерасходе). */
+  percent: number;
 }
 
 export interface Expense {

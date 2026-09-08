@@ -7,7 +7,9 @@
  */
 
 import type {
+  Category,
   CategoryBreakdownItem,
+  CategoryBudgetStatus,
   ExpenseStats,
   ExpenseWithCategory,
   IsoDate,
@@ -219,4 +221,45 @@ export function groupExpensesByDate(
 /** Подпись точки дневного тренда для тултипа: "1 сен". */
 export function dailyTrendTooltipLabel(key: string): string {
   return formatDayMonthShort(key);
+}
+
+/**
+ * Категории с заданным лимитом — сколько уже потрачено и сколько осталось.
+ *
+ * Строится из всех категорий, а не из buildCategoryBreakdown: категория без
+ * единой траты в этом месяце должна показать «0 из лимита», а не пропасть из
+ * списка — иначе пользователь не увидит, что лимит вообще задан.
+ *
+ * Отсортировано по проценту использования — категории на грани перерасхода
+ * (или уже в нём) видно первыми, без прокрутки.
+ */
+export function buildCategoryBudgets(
+  categories: Category[],
+  expenses: ExpenseWithCategory[],
+): CategoryBudgetStatus[] {
+  const spentByCategory = new Map<string, number>();
+  for (const expense of expenses) {
+    spentByCategory.set(
+      expense.categoryId,
+      roundTo((spentByCategory.get(expense.categoryId) ?? 0) + expense.amount, 2),
+    );
+  }
+
+  return categories
+    .filter((category): category is Category & { monthlyLimit: number } => category.monthlyLimit !== null)
+    .map((category) => {
+      const spent = spentByCategory.get(category.id) ?? 0;
+
+      return {
+        categoryId: category.id,
+        name: category.name,
+        color: category.color,
+        icon: category.icon,
+        limit: category.monthlyLimit,
+        spent,
+        remaining: roundTo(category.monthlyLimit - spent, 2),
+        percent: roundTo((spent / category.monthlyLimit) * 100, 0),
+      };
+    })
+    .sort((a, b) => b.percent - a.percent);
 }

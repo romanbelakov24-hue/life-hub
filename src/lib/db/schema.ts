@@ -185,6 +185,10 @@ export const ALTER_STATEMENTS: string[] = [
   `ALTER TABLE incomes ADD COLUMN user_id TEXT`,
   `ALTER TABLE health_daily ADD COLUMN user_id TEXT`,
   `ALTER TABLE settings ADD COLUMN user_id TEXT`,
+
+  // Лимит трат в месяц на категорию. NULL — лимит не задан, категория не
+  // участвует в блоке «Бюджеты по категориям» на странице расходов.
+  `ALTER TABLE categories ADD COLUMN monthly_limit REAL`,
 ];
 
 /**
@@ -216,17 +220,22 @@ export const POST_ALTER_STATEMENTS: string[] = [
   // категорию с одинаковым названием, а стартовый набор категорий у каждого
   // называется одинаково. Колоночный UNIQUE через ALTER не убрать —
   // пересобираем таблицу без него и добавляем составной индекс.
+  // monthly_limit перечислен и здесь: эта пересборка выполняется целиком при
+  // каждом прогоне миграции (см. комментарий в начале файла), а не только один
+  // раз — если забыть новую колонку тут, она молча потеряется при следующем
+  // прогоне, даже если ALTER_STATEMENTS выше её честно добавил.
   `CREATE TABLE IF NOT EXISTS categories_v2 (
-     id          TEXT PRIMARY KEY,
-     user_id     TEXT,
-     name        TEXT NOT NULL,
-     color       TEXT NOT NULL DEFAULT '#7e8894',
-     icon        TEXT NOT NULL DEFAULT 'tag',
-     is_default  INTEGER NOT NULL DEFAULT 0,
-     sort_order  INTEGER NOT NULL DEFAULT 100
+     id            TEXT PRIMARY KEY,
+     user_id       TEXT,
+     name          TEXT NOT NULL,
+     color         TEXT NOT NULL DEFAULT '#7e8894',
+     icon          TEXT NOT NULL DEFAULT 'tag',
+     is_default    INTEGER NOT NULL DEFAULT 0,
+     sort_order    INTEGER NOT NULL DEFAULT 100,
+     monthly_limit REAL
    )`,
-  `INSERT INTO categories_v2 (id, user_id, name, color, icon, is_default, sort_order)
-     SELECT id, user_id, name, color, icon, is_default, sort_order FROM categories`,
+  `INSERT INTO categories_v2 (id, user_id, name, color, icon, is_default, sort_order, monthly_limit)
+     SELECT id, user_id, name, color, icon, is_default, sort_order, monthly_limit FROM categories`,
   `DROP TABLE categories`,
   `ALTER TABLE categories_v2 RENAME TO categories`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name ON categories(user_id, name)`,

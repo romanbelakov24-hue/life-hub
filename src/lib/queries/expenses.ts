@@ -3,7 +3,7 @@ import "server-only";
 import type { Row } from "@libsql/client";
 
 import { db } from "@/lib/db/client";
-import { bool, num, str } from "@/lib/db/rows";
+import { bool, num, numOrNull, str } from "@/lib/db/rows";
 import { DEFAULT_CATEGORIES } from "@/lib/db/schema";
 import type { Category, Expense, ExpenseWithCategory, IsoDate } from "@/lib/types";
 import { createId } from "@/lib/utils/id";
@@ -25,7 +25,7 @@ import { createId } from "@/lib/utils/id";
 export async function listCategories(userId: string): Promise<Category[]> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT id, name, color, icon, is_default, sort_order
+    sql: `SELECT id, name, color, icon, is_default, sort_order, monthly_limit
             FROM categories
            WHERE user_id = ?
            ORDER BY sort_order ASC, name ASC`,
@@ -39,6 +39,7 @@ export async function listCategories(userId: string): Promise<Category[]> {
     icon: str(row, "icon"),
     isDefault: bool(row, "is_default"),
     sortOrder: num(row, "sort_order"),
+    monthlyLimit: numOrNull(row, "monthly_limit"),
   }));
 }
 

@@ -40,3 +40,14 @@ export function strOrNull(row: Row, key: string): string | null {
   if (value === null || value === undefined || value === "") return null;
   return str(row, key);
 }
+
+/**
+ * Число или null — для колонок, где NULL значит «не задано», а не ноль
+ * (лимит категории, показатели здоровья). num() тут не подходит: у ннего
+ * нечисловое значение тоже превращается в 0, и «лимита нет» стало бы
+ * неотличимо от «лимит — 0 рублей».
+ */
+export function numOrNull(row: Row, key: string): number | null {
+  const value = row[key];
+  return value === null || value === undefined ? null : num(row, key);
+}
