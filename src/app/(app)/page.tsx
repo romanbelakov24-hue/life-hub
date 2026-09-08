@@ -37,52 +37,6 @@ export default async function OverviewPage() {
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
 
-  // ВРЕМЕННО: allSettled вместо all + вывод текста ошибки прямо на странице —
-  // чтобы увидеть настоящую причину 500-ки на Cloudflare без доступа к логам.
-  // Убрать после диагностики.
-  const settled = await Promise.allSettled([
-    listExpensesInRange(user.id, monthStart, monthEnd),
-    sumExpensesInRange(user.id, today, today),
-    listRecentExpenses(user.id, 4),
-    listUpcomingEvents(user.id, today, 4),
-    listTasksDueBy(user.id, addDays(today, 7), 5),
-    getTaskCounters(user.id, today),
-    listRecentNotes(user.id, 4),
-  ]);
-
-  const LABELS = [
-    "listExpensesInRange",
-    "sumExpensesInRange",
-    "listRecentExpenses",
-    "listUpcomingEvents",
-    "listTasksDueBy",
-    "getTaskCounters",
-    "listRecentNotes",
-  ];
-
-  const failed = settled
-    .map((result, index) => ({ result, label: LABELS[index] }))
-    .filter((entry): entry is { result: PromiseRejectedResult; label: string } =>
-      entry.result.status === "rejected",
-    );
-
-  if (failed.length > 0) {
-    return (
-      <div className="mt-6 rounded-[14px] border border-negative bg-negative-soft p-4 font-mono text-[12px] text-negative">
-        <p className="mb-2 font-bold">ВРЕМЕННАЯ ДИАГНОСТИКА — что упало:</p>
-        {failed.map(({ result, label }) => (
-          <pre key={label} className="mb-3 whitespace-pre-wrap">
-            {label}: {result.reason?.message ?? String(result.reason)}
-            {"\n"}
-            {result.reason?.stack ?? ""}
-            {"\n"}
-            cause: {result.reason?.cause?.message ?? String(result.reason?.cause ?? "")}
-          </pre>
-        ))}
-      </div>
-    );
-  }
-
   const [
     monthExpenses,
     todayTotal,
@@ -91,15 +45,16 @@ export default async function OverviewPage() {
     upcomingTasks,
     taskCounters,
     recentNotes,
-  ] = settled.map((result) => (result as PromiseFulfilledResult<unknown>).value) as [
-    Awaited<ReturnType<typeof listExpensesInRange>>,
-    Awaited<ReturnType<typeof sumExpensesInRange>>,
-    Awaited<ReturnType<typeof listRecentExpenses>>,
-    Awaited<ReturnType<typeof listUpcomingEvents>>,
-    Awaited<ReturnType<typeof listTasksDueBy>>,
-    Awaited<ReturnType<typeof getTaskCounters>>,
-    Awaited<ReturnType<typeof listRecentNotes>>,
-  ];
+  ] = await Promise.all([
+    listExpensesInRange(user.id, monthStart, monthEnd),
+    sumExpensesInRange(user.id, today, today),
+    listRecentExpenses(user.id, 4),
+    listUpcomingEvents(user.id, today, 4),
+    // «Ближайшие» — всё, что просрочено, плюс горизонт в неделю вперёд.
+    listTasksDueBy(user.id, addDays(today, 7), 5),
+    getTaskCounters(user.id, today),
+    listRecentNotes(user.id, 4),
+  ]);
 
   return (
     <>
