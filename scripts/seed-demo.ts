@@ -86,6 +86,60 @@ const SAMPLE_TASKS = [
   { title: "Сделать макет проекта по БД", subject: "Базы данных", due: daysAgo(-6), urgent: 0, important: 1 },
 ];
 
+const SAMPLE_GOALS: Array<{
+  name: string;
+  color: string;
+  icon: string;
+  targetAmount: number;
+  /** Как offset у SAMPLE_EVENTS: отрицательное — уже прошло, положительное — в будущем; null — без срока. */
+  targetDateOffset: number | null;
+  contributions: Array<{ amount: number; daysAgo: number; note: string }>;
+}> = [
+  {
+    name: "Новый ноутбук",
+    color: "#e0642f",
+    icon: "smartphone",
+    targetAmount: 65_000,
+    targetDateOffset: 75,
+    contributions: [
+      { amount: 5000, daysAgo: 45, note: "Стипендия" },
+      { amount: 8000, daysAgo: 30, note: "Подработка" },
+      { amount: 10_000, daysAgo: 10, note: "Родители помогли" },
+    ],
+  },
+  {
+    name: "Поездка в Питер",
+    color: "#2f80ed",
+    icon: "plane",
+    targetAmount: 25_000,
+    targetDateOffset: 18,
+    contributions: [
+      { amount: 10_000, daysAgo: 25, note: "Со стипендии" },
+      { amount: 6000, daysAgo: 12, note: "Подработка" },
+      { amount: 5000, daysAgo: 3, note: "Сэкономил на еде" },
+    ],
+  },
+  {
+    name: "Подарок на день рождения",
+    color: "#c4457c",
+    icon: "gift",
+    targetAmount: 6000,
+    targetDateOffset: -2, // срок уже прошёл — демонстрирует просроченную цель
+    contributions: [
+      { amount: 2000, daysAgo: 15, note: "Отложил заранее" },
+      { amount: 1000, daysAgo: 5, note: "" },
+    ],
+  },
+  {
+    name: "Новые кроссовки",
+    color: "#4f9d2f",
+    icon: "dumbbell",
+    targetAmount: 9000,
+    targetDateOffset: null,
+    contributions: [{ amount: 9500, daysAgo: 20, note: "Скопил за месяц" }], // с запасом — цель достигнута
+  },
+];
+
 const SAMPLE_NOTES = [
   {
     title: "Формула Тейлора",
@@ -202,6 +256,43 @@ async function main(): Promise<void> {
     "write",
   );
   console.log(`Задач: ${SAMPLE_TASKS.length}.`);
+
+  // ─── Цели накоплений ────────────────────────────────────────────────────────
+  const goalIds = SAMPLE_GOALS.map(() => randomId("goal"));
+
+  await client.batch(
+    SAMPLE_GOALS.map((goal, index) => ({
+      sql: `INSERT INTO savings_goals (id, name, color, icon, target_amount, target_date, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        goalIds[index] ?? randomId("goal"),
+        goal.name,
+        goal.color,
+        goal.icon,
+        goal.targetAmount,
+        goal.targetDateOffset === null ? null : daysAgo(-goal.targetDateOffset),
+        now,
+      ],
+    })),
+    "write",
+  );
+
+  const contributionStatements = SAMPLE_GOALS.flatMap((goal, index) =>
+    goal.contributions.map((contribution) => ({
+      sql: `INSERT INTO savings_contributions (id, goal_id, date, amount, note, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [
+        randomId("contrib"),
+        goalIds[index] ?? "",
+        daysAgo(contribution.daysAgo),
+        contribution.amount,
+        contribution.note,
+        now,
+      ],
+    })),
+  );
+  await client.batch(contributionStatements, "write");
+  console.log(`Целей накоплений: ${SAMPLE_GOALS.length}, пополнений: ${contributionStatements.length}.`);
 
   // ─── Заметки ────────────────────────────────────────────────────────────────
   await client.batch(

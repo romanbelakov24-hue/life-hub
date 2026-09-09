@@ -134,6 +134,43 @@ export const SCHEMA_STATEMENTS: string[] = [
 
   `CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date DESC)`,
 
+  // ─── Цели накоплений ────────────────────────────────────────────────────────
+  // Отдельная от доходов/трат «копилка»: сумма цели, необязательный срок,
+  // и лента пополнений (savings_contributions) — сколько и когда отложили.
+  // Прогресс не завязан на бюджет месяца: отложенное для цели не вычитается
+  // из «сколько можно тратить в день» — это самостоятельный трекер, а не
+  // ещё один слой над BudgetForecast. Таблица новая, второго этапа миграции
+  // не требует: user_id нулевой сразу здесь, как и у events (см. комментарий
+  // там) — ради того же демо-сидинга без владельца.
+  `CREATE TABLE IF NOT EXISTS savings_goals (
+     id            TEXT PRIMARY KEY,
+     user_id       TEXT,
+     name          TEXT NOT NULL,
+     color         TEXT NOT NULL DEFAULT '#7e8894',
+     icon          TEXT NOT NULL DEFAULT 'tag',
+     target_amount REAL NOT NULL,
+     target_date   TEXT,
+     created_at    TEXT NOT NULL
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_savings_goals_user ON savings_goals(user_id)`,
+
+  // Пополнения копилки — только положительные суммы (как у incomes): ошибочную
+  // запись правят удалением, а не минусом. Каскадное удаление — чтобы удаление
+  // цели не оставляло висящих пополнений без хозяина.
+  `CREATE TABLE IF NOT EXISTS savings_contributions (
+     id         TEXT PRIMARY KEY,
+     user_id    TEXT,
+     goal_id    TEXT NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+     date       TEXT NOT NULL,
+     amount     REAL NOT NULL,
+     note       TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL
+   )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_savings_contributions_goal ON savings_contributions(goal_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_savings_contributions_user ON savings_contributions(user_id)`,
+
   // ─── Здоровье ───────────────────────────────────────────────────────────────
   // Одна строка на день, поля заполняются по мере поступления. У Apple Health
   // и Xiaomi Health нет веб-API — данные приходят POST-запросом от автоматизации

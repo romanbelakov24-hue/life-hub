@@ -12,6 +12,7 @@ import { ExpensesToolbar } from "@/components/expenses/expenses-toolbar";
 import { ExpenseTable } from "@/components/expenses/expense-table";
 import { QuickAddExpense } from "@/components/expenses/quick-add";
 import { BudgetCard } from "@/components/expenses/budget-card";
+import { SavingsGoalsCard } from "@/components/expenses/savings-goals-card";
 import { StatsPanel } from "@/components/expenses/stats-panel";
 import { SummaryCards } from "@/components/expenses/summary-cards";
 import { buildBudgetForecast } from "@/lib/analytics/budget";
@@ -24,6 +25,7 @@ import {
   computeExpenseStats,
   sumExpenses,
 } from "@/lib/analytics/expenses";
+import { buildSavingsGoalStatuses } from "@/lib/analytics/savings";
 import {
   listCategories,
   listExpensesInRange,
@@ -31,6 +33,7 @@ import {
   sumExpensesInRange,
 } from "@/lib/queries/expenses";
 import { getHistoricalDailyRate, sumIncomesInRange } from "@/lib/queries/income";
+import { listContributions, listSavingsGoals } from "@/lib/queries/savings";
 import { requireUser } from "@/lib/auth/user";
 import {
   addMonths,
@@ -92,6 +95,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     monthlyTotals,
     monthIncome,
     historicalDailyRate,
+    savingsGoals,
+    savingsContributions,
   ] = await Promise.all([
     listCategories(user.id),
     listExpensesInRange(user.id, monthStart, monthEnd),
@@ -101,6 +106,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     listMonthlyTotals(user.id, 6),
     sumIncomesInRange(user.id, monthStart, monthEnd),
     getHistoricalDailyRate(user.id, monthKeyOf(monthAnchor)),
+    listSavingsGoals(user.id),
+    listContributions(user.id),
   ]);
 
   const isCurrentMonth = monthKeyOf(monthAnchor) === monthKeyOf(today);
@@ -115,6 +122,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
   const breakdown = buildCategoryDetails(expenses);
   const stats = computeExpenseStats(expenses, prevMonthTotal, daysElapsed);
   const categoryBudgets = buildCategoryBudgets(categories, expenses);
+  const goalStatuses = buildSavingsGoalStatuses(savingsGoals, savingsContributions, today);
 
   const forecast = buildBudgetForecast({
     income: monthIncome,
@@ -166,6 +174,8 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         />
 
         <CategoryBudgets budgets={categoryBudgets} />
+
+        <SavingsGoalsCard goals={goalStatuses} />
 
         {view === "list" ? (
           <ExpenseTable expenses={expenses} categories={categories} today={today} />

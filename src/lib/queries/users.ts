@@ -82,6 +82,8 @@ const LEGACY_TABLES = [
   "incomes",
   "health_daily",
   "settings",
+  "savings_goals",
+  "savings_contributions",
 ] as const;
 
 /**

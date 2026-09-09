@@ -150,6 +150,54 @@ export interface BudgetForecast {
   projectedBalance: number | null;
 }
 
+// ─── Цели накоплений ─────────────────────────────────────────────────────────
+
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+  targetAmount: number;
+  /** Необязательный срок — если задан, считается рекомендуемый темп в месяц. */
+  targetDate: IsoDate | null;
+  createdAt: string;
+}
+
+/** Пополнение копилки — всегда положительная сумма, как и у Income. */
+export interface SavingsContribution {
+  id: string;
+  goalId: string;
+  date: IsoDate;
+  amount: number;
+  note: string;
+  createdAt: string;
+}
+
+/** Цель вместе с посчитанным прогрессом — то, что рисует карточка. */
+export interface SavingsGoalStatus {
+  goalId: string;
+  name: string;
+  color: string;
+  icon: string;
+  targetAmount: number;
+  targetDate: IsoDate | null;
+  /** Сумма всех пополнений. */
+  saved: number;
+  /** targetAmount - saved; отрицательное — цель перевыполнена. */
+  remaining: number;
+  /** Доля от цели, 0…100+ (может быть больше 100 при перевыполнении). */
+  percent: number;
+  /** Цель достигнута: saved >= targetAmount. */
+  achieved: boolean;
+  /** Дней до срока; null — срок не задан, отрицательное — просрочено. */
+  daysLeft: number | null;
+  /**
+   * Сколько нужно откладывать в месяц, чтобы успеть к сроку.
+   * null, если срока нет, цель уже достигнута или срок прошёл.
+   */
+  suggestedMonthly: number | null;
+}
+
 // ─── Здоровье ────────────────────────────────────────────────────────────────
 
 /**
