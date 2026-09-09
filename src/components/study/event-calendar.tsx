@@ -226,7 +226,7 @@ function MonthGrid({
   return (
     <div
       data-spotlight
-      className="spotlight relative rounded-[14px] border border-line bg-surface/85 p-3 backdrop-blur-xl sm:p-4"
+      className="glass glass-blur spotlight relative rounded-[14px] border border-line bg-surface/88 p-3 sm:p-4"
     >
       <div className="grid grid-cols-7 gap-1">
         {([1, 2, 3, 4, 5, 6, 7] as const).map((weekday) => (

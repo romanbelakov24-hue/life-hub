@@ -15,13 +15,16 @@ type Size = "sm" | "md";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   // Свечение под акцентной кнопкой — она главный призыв к действию на экране.
+  // glass-inset даёт фаску глянцевой пилюли, sheen — блик, сметающий кнопку
+  // при наведении (сам overflow-hidden обязателен: он же и обрезает блик по
+  // скруглению, outline фокуса это не задевает — он рисуется вне рамки).
   primary:
-    "bg-accent text-accent-ink border border-transparent shadow-[0_6px_24px_-8px_var(--glow-strong)] " +
+    "glass-inset sheen overflow-hidden bg-accent text-accent-ink border border-transparent shadow-[0_6px_24px_-8px_var(--glow-strong)] " +
     "hover:brightness-110 hover:shadow-[0_8px_30px_-8px_var(--glow-strong)] active:brightness-95",
   secondary:
-    "bg-surface-2 text-ink hover:bg-surface-3 border border-line active:bg-surface-3",
+    "glass-inset bg-surface-2 text-ink hover:bg-surface-3 border border-line active:bg-surface-3",
   outline:
-    "bg-transparent text-ink hover:bg-surface-2 border border-line-strong",
+    "glass-inset bg-transparent text-ink hover:bg-surface-2 border border-line-strong",
   ghost:
     "bg-transparent text-ink-muted hover:bg-surface-2 hover:text-ink border border-transparent",
   danger:

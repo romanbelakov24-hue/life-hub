@@ -16,7 +16,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
+    <aside className="glass-blur fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface/85 lg:flex">
       <div className="px-5 py-6">
         <Wordmark />
       </div>

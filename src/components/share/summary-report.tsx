@@ -207,7 +207,7 @@ function TrendBadge({ percent }: { percent: number | null }) {
 
 function EmptyMonth() {
   return (
-    <p className="animate-rise mt-8 rounded-[14px] border border-line bg-surface/85 px-5 py-8 text-center text-[14px] text-ink-muted backdrop-blur-xl">
+    <p className="glass glass-blur animate-rise mt-8 rounded-[14px] border border-line bg-surface/88 px-5 py-8 text-center text-[14px] text-ink-muted">
       В этом месяце трат ещё нет.
     </p>
   );

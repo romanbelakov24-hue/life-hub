@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils/cn";
  */
 
 const CONTROL_BASE = cn(
-  "w-full rounded-[10px] border border-line bg-surface-2 px-3 text-sm text-ink",
+  "glass-recessed w-full rounded-[10px] border border-line bg-surface-2 px-3 text-sm text-ink",
   "placeholder:text-ink-faint",
   "transition-[border-color,background-color] duration-200",
   "hover:border-line-strong",

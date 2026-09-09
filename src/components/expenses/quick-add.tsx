@@ -86,7 +86,7 @@ export function QuickAddExpense({ categories, defaultDate }: QuickAddExpenseProp
     <form
       onSubmit={handleSubmit}
       data-spotlight
-      className="spotlight relative rounded-[14px] border border-line bg-surface/85 p-3 backdrop-blur-xl sm:p-4"
+      className="glass glass-blur spotlight relative rounded-[14px] border border-line bg-surface/88 p-3 sm:p-4"
     >
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
         <Field

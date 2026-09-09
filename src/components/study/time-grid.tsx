@@ -51,7 +51,7 @@ export function TimeGrid({ days, eventsByDate, today, onEventClick, onSlotClick 
   const todayOffset = days.includes(today) ? nowOffset() : null;
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-line bg-surface/85 backdrop-blur-xl">
+    <div className="glass glass-blur overflow-hidden rounded-[14px] border border-line bg-surface/88">
       {/* Заголовки дней */}
       <div
         className="grid border-b border-line"

@@ -55,7 +55,7 @@ export function MobileNav() {
       <nav
         aria-label="Разделы"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur-md",
+          "glass-blur glass-inset fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/85",
           "pb-safe lg:hidden",
         )}
       >
@@ -130,7 +130,7 @@ function MoreSheet({ onClose, pathname }: { onClose: () => void; pathname: strin
         className="animate-fade absolute inset-0 cursor-default bg-black/50 backdrop-blur-[3px]"
       />
 
-      <div className="animate-scale-in relative z-10 w-full rounded-t-[18px] border border-line bg-surface pb-safe">
+      <div className="glass animate-scale-in relative z-10 w-full rounded-t-[18px] border border-line bg-surface pb-safe">
         <header className="flex items-center justify-between border-b border-line px-4 py-3.5">
           <h2 className="text-base font-semibold tracking-[-0.015em] text-ink">Ещё</h2>
           <button

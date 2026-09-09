@@ -314,7 +314,9 @@
 
   /* ─── Световое пятно под курсором ─────────────────────────────────────────
      Рисуется на самой панели поверх её фона, но под содержимым. Координаты
-     приходят из PointerTracker. */
+     приходят из PointerTracker. Два слоя: тесный яркий блик точно под
+     курсором — как блик на изогнутом стекле, и более широкое тёплое пятно
+     вокруг него, тем же приёмом, что и раньше. */
   .spotlight::before {
     content: "";
     position: absolute;
@@ -324,11 +326,15 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 320ms ease;
-    background: radial-gradient(
-      150px circle at var(--mx, 50%) var(--my, 50%),
-      var(--glow),
-      transparent 70%
-    );
+    background:
+      radial-gradient(80px circle at var(--mx, 50%) var(--my, 50%), rgb(255 255 255 / 0.35), transparent 70%),
+      radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), var(--glow), transparent 70%);
+  }
+
+  .dark .spotlight::before {
+    background:
+      radial-gradient(80px circle at var(--mx, 50%) var(--my, 50%), rgb(255 255 255 / 0.14), transparent 70%),
+      radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), var(--glow), transparent 70%);
   }
 
   /* Содержимое поднимается над пятном. Без этого абсолютный псевдоэлемент
@@ -417,6 +423,98 @@
     opacity: 0.7;
     pointer-events: none;
   }
+
+  /* ─── Жидкое стекло ────────────────────────────────────────────────────────
+     Объём поверх плоской подложки: фаска (внутренний блик у верхней кромки +
+     внутренняя тень у нижней — так свет ложится на срез настоящего стекла)
+     и мягкая тень отрыва от фона под панелью. Плюс лёгкий диагональный
+     блик самим фоном — background-image отдельным слоем поверх
+     background-color из bg-surface/NN, конфликта нет: разные свойства.
+     Работает вместе с .edge-light (линия по кромке) и .spotlight (пятно под
+     курсором) — по отдельности каждый приём читается как обычная тень,
+     вместе — как толща стекла. --shadow-color берётся из палитры темы. */
+  .glass {
+    position: relative;
+    background-image: linear-gradient(155deg, rgb(255 255 255 / 0.08), transparent 32%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.55),
+      inset 0 0 0 1px rgb(255 255 255 / 0.05),
+      inset 0 -16px 22px -20px rgb(0 0 0 / 0.12),
+      0 1px 1px 0 rgb(var(--shadow-color) / 0.05),
+      0 20px 44px -22px rgb(var(--shadow-color) / 0.28),
+      0 6px 18px -12px rgb(var(--shadow-color) / 0.18);
+  }
+
+  .dark .glass {
+    background-image: linear-gradient(155deg, rgb(255 255 255 / 0.04), transparent 32%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.09),
+      inset 0 0 0 1px rgb(255 255 255 / 0.05),
+      inset 0 -16px 24px -20px rgb(0 0 0 / 0.55),
+      0 1px 1px 0 rgb(0 0 0 / 0.4),
+      0 28px 56px -22px rgb(0 0 0 / 0.6),
+      0 10px 24px -14px rgb(0 0 0 / 0.45);
+  }
+
+  /* Лёгкий вариант без общей тени отрыва — для мелочи внутри уже объёмной
+     панели (кнопки, поля, пилюли-переключатели), где своя большая тень
+     была бы лишней и на списке из десятка таких элементов заметно
+     просаживала бы рендер. Только фаска. */
+  .glass-inset {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.5),
+      inset 0 -1px 0 0 rgb(0 0 0 / 0.04);
+  }
+
+  .dark .glass-inset {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.08),
+      inset 0 -1px 0 0 rgb(0 0 0 / 0.35);
+  }
+
+  /* Обратная фаска — для полей ввода. Кнопка и пилюля выступают над
+     поверхностью (свет сверху, тень снизу), а поле ввода в неё вдавлено:
+     тень у верхней кромки, где на срез падает тень от края паза, и слабый
+     отблеск снизу, где скапливается отражённый свет. */
+  .glass-recessed {
+    box-shadow:
+      inset 0 1px 2px 0 rgb(0 0 0 / 0.06),
+      inset 0 -1px 0 0 rgb(255 255 255 / 0.4);
+  }
+
+  .dark .glass-recessed {
+    box-shadow:
+      inset 0 1px 2px 0 rgb(0 0 0 / 0.35),
+      inset 0 -1px 0 0 rgb(255 255 255 / 0.05);
+  }
+
+  /* Диагональный блик, сметающий кнопку при наведении, — тот самый отблеск,
+     что скользит по изогнутому стеклу при повороте. Требует overflow-hidden
+     на элементе (задаётся вместе с классом в самих компонентах). */
+  .sheen {
+    position: relative;
+  }
+
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 30%,
+      rgb(255 255 255 / 0.4) 48%,
+      transparent 66%
+    );
+    transform: translateX(-120%);
+    pointer-events: none;
+  }
+
+  @media (hover: hover) {
+    .sheen:hover::after {
+      transform: translateX(120%);
+      transition: transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  }
 }
 
 @layer utilities {
@@ -467,6 +565,17 @@
 
   .text-glow {
     text-shadow: 0 0 28px var(--glow);
+  }
+
+  /* Размытие + поднятая насыщенность цвета за стеклом — вместо плоского
+     blur-* даёт ощущение настоящей толщи стекла, через которую видно
+     подсвеченный фон, а не просто полупрозрачную плашку. Слой utilities —
+     чтобы гарантированно перебивать Tailwind-класс backdrop-blur-*, если
+     он остался на элементе рядом (у обоих одна специфичность, и в слое
+     utilities выигрывает то, что описано позже — то есть это правило). */
+  .glass-blur {
+    backdrop-filter: blur(20px) saturate(130%);
+    -webkit-backdrop-filter: blur(20px) saturate(130%);
   }
 
   /* Обводка со свечением — для активных и выделенных состояний. */

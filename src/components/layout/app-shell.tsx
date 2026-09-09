@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
 
       {/* Шапка только для мобильных — на десктопе её роль играет сайдбар. */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-paper/90 px-4 py-3 backdrop-blur-md lg:hidden">
+      <header className="glass-blur glass-inset sticky top-0 z-30 flex items-center justify-between border-b border-line bg-paper/85 px-4 py-3 lg:hidden">
         <Wordmark compact />
 
         <div className="flex items-center gap-1.5">

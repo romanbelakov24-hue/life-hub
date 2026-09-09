@@ -77,8 +77,12 @@ export function Modal({ open, onClose, title, description, children, footer }: M
 
       <div
         className={cn(
-          "animate-scale-in relative z-10 flex max-h-[92vh] w-full flex-col",
-          "border border-line bg-surface shadow-[0_24px_70px_-20px_var(--glow)]",
+          // .glass отвечает за всю тень целиком (фаска + отрыв от фона) — свой
+          // shadow-[...] тут не добавляем: и Tailwind, и .glass пишут в один и
+          // тот же box-shadow, а слой utilities Tailwind в этой схлопке победил
+          // бы безоговорочно и стёр бы фаску .glass.
+          "glass animate-scale-in relative z-10 flex max-h-[92vh] w-full flex-col",
+          "border border-line bg-surface",
           "rounded-t-[18px] sm:max-w-lg sm:rounded-[16px]",
         )}
       >

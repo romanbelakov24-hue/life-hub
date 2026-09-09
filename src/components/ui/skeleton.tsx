@@ -45,7 +45,7 @@ export function SkeletonPanel({
   return (
     <div
       className={cn(
-        "rounded-[14px] border border-line bg-surface/85 p-4 backdrop-blur-xl sm:p-5",
+        "glass glass-blur rounded-[14px] border border-line bg-surface/88 p-4 sm:p-5",
         className,
       )}
     >

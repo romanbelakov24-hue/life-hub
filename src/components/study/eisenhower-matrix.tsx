@@ -61,7 +61,7 @@ export function EisenhowerMatrix({ tasks, today, onEdit }: EisenhowerMatrixProps
             }}
             data-spotlight
             className={cn(
-              "spotlight relative flex min-h-[180px] flex-col rounded-[14px] border bg-surface/85 p-3.5 backdrop-blur-xl",
+              "glass glass-blur spotlight relative flex min-h-[180px] flex-col rounded-[14px] border bg-surface/88 p-3.5",
               "transition-colors duration-200",
               isDragTarget ? "border-accent bg-accent-soft" : "border-line",
             )}
