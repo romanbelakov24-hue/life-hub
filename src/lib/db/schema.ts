@@ -226,6 +226,15 @@ export const ALTER_STATEMENTS: string[] = [
   // Лимит трат в месяц на категорию. NULL — лимит не задан, категория не
   // участвует в блоке «Бюджеты по категориям» на странице расходов.
   `ALTER TABLE categories ADD COLUMN monthly_limit REAL`,
+
+  // Экранное время в минутах за день. В отличие от шагов/сна/пульса это поле
+  // не приходит из автоматизации «Быстрых команд»: у Apple нет действия
+  // Shortcuts, которое читало бы Экранное время (в отличие от Здоровья, это
+  // отдельный API с ограниченным доступом) — обещать автоматический сбор
+  // здесь значило бы соврать. Записывается вручную на странице /health;
+  // вебхук тоже принимает поле — на случай, если владелец найдёт свой способ
+  // прислать его автоматически.
+  `ALTER TABLE health_daily ADD COLUMN screen_time_minutes INTEGER`,
 ];
 
 /**
@@ -292,18 +301,24 @@ export const POST_ALTER_STATEMENTS: string[] = [
   `DROP TABLE settings`,
   `ALTER TABLE settings_v2 RENAME TO settings`,
 
-  // health_daily: (date) -> (user_id, date), тот же приём.
+  // health_daily: (date) -> (user_id, date), тот же приём. screen_time_minutes
+  // перечислен и здесь по той же причине, что monthly_limit у categories_v2
+  // выше: эта пересборка выполняется целиком при каждом прогоне миграции, и
+  // забытая тут новая колонка молча потеряется на следующем прогоне.
   `CREATE TABLE IF NOT EXISTS health_daily_v2 (
-     user_id            TEXT,
-     date               TEXT NOT NULL,
-     steps              INTEGER,
-     sleep_minutes      INTEGER,
-     resting_heart_rate INTEGER,
-     updated_at         TEXT NOT NULL,
+     user_id              TEXT,
+     date                 TEXT NOT NULL,
+     steps                INTEGER,
+     sleep_minutes        INTEGER,
+     resting_heart_rate   INTEGER,
+     screen_time_minutes  INTEGER,
+     updated_at           TEXT NOT NULL,
      PRIMARY KEY (user_id, date)
    )`,
-  `INSERT INTO health_daily_v2 (user_id, date, steps, sleep_minutes, resting_heart_rate, updated_at)
-     SELECT user_id, date, steps, sleep_minutes, resting_heart_rate, updated_at FROM health_daily`,
+  `INSERT INTO health_daily_v2
+      (user_id, date, steps, sleep_minutes, resting_heart_rate, screen_time_minutes, updated_at)
+     SELECT user_id, date, steps, sleep_minutes, resting_heart_rate, screen_time_minutes, updated_at
+       FROM health_daily`,
   `DROP TABLE health_daily`,
   `ALTER TABLE health_daily_v2 RENAME TO health_daily`,
 ];

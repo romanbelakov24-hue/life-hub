@@ -20,12 +20,22 @@ import { isValidIso, todayIso } from "@/lib/utils/date";
 
 export const dynamic = "force-dynamic";
 
-/** Принимаемые поля. Каждое необязательно — шорткат шлёт то, что у него есть. */
+/**
+ * Принимаемые поля. Каждое необязательно — шорткат шлёт то, что у него есть.
+ *
+ * screenTimeMinutes сюда тоже принимается, хотя на странице /health об этом
+ * не написано ни слова: у Apple нет действия Shortcuts, которое читало бы
+ * Экранное время (в отличие от Здоровья, это отдельный API), так что
+ * обещать автоматический сбор было бы нечестно — вместо этого поле
+ * заполняется вручную через actions/health.ts. Поле в вебхуке оставлено на
+ * случай, если владелец сам найдёт способ прислать его автоматически.
+ */
 interface HealthPayload {
   date?: unknown;
   steps?: unknown;
   sleepMinutes?: unknown;
   restingHeartRate?: unknown;
+  screenTimeMinutes?: unknown;
 }
 
 /**
@@ -72,8 +82,9 @@ export async function POST(
   const steps = parseMetric(payload.steps, 200_000);
   const sleepMinutes = parseMetric(payload.sleepMinutes, 24 * 60);
   const restingHeartRate = parseMetric(payload.restingHeartRate, 300);
+  const screenTimeMinutes = parseMetric(payload.screenTimeMinutes, 24 * 60);
 
-  if (steps === null && sleepMinutes === null && restingHeartRate === null) {
+  if (steps === null && sleepMinutes === null && restingHeartRate === null && screenTimeMinutes === null) {
     return Response.json(
       { error: "Ни одно значение не распознано. Проверьте типы полей в теле запроса." },
       { status: 400 },
@@ -86,15 +97,17 @@ export async function POST(
   // старое, отсутствующее — не трогает. Так одна автоматизация про шаги не
   // затирает сон, записанный другой автоматизацией часом раньше.
   await client.execute({
-    sql: `INSERT INTO health_daily (user_id, date, steps, sleep_minutes, resting_heart_rate, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
+    sql: `INSERT INTO health_daily
+            (user_id, date, steps, sleep_minutes, resting_heart_rate, screen_time_minutes, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, date) DO UPDATE SET
-            steps              = COALESCE(excluded.steps, health_daily.steps),
-            sleep_minutes      = COALESCE(excluded.sleep_minutes, health_daily.sleep_minutes),
-            resting_heart_rate = COALESCE(excluded.resting_heart_rate, health_daily.resting_heart_rate),
-            updated_at         = excluded.updated_at`,
-    args: [userId, date, steps, sleepMinutes, restingHeartRate, new Date().toISOString()],
+            steps                = COALESCE(excluded.steps, health_daily.steps),
+            sleep_minutes        = COALESCE(excluded.sleep_minutes, health_daily.sleep_minutes),
+            resting_heart_rate   = COALESCE(excluded.resting_heart_rate, health_daily.resting_heart_rate),
+            screen_time_minutes  = COALESCE(excluded.screen_time_minutes, health_daily.screen_time_minutes),
+            updated_at           = excluded.updated_at`,
+    args: [userId, date, steps, sleepMinutes, restingHeartRate, screenTimeMinutes, new Date().toISOString()],
   });
 
-  return Response.json({ ok: true, date, steps, sleepMinutes, restingHeartRate });
+  return Response.json({ ok: true, date, steps, sleepMinutes, restingHeartRate, screenTimeMinutes });
 }

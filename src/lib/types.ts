@@ -210,6 +210,8 @@ export interface HealthDaily {
   steps: number | null;
   sleepMinutes: number | null;
   restingHeartRate: number | null;
+  /** Экранное время в минутах. Заносится вручную — см. actions/health.ts. */
+  screenTimeMinutes: number | null;
   updatedAt: string;
 }
 

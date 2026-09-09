@@ -140,6 +140,9 @@ const SAMPLE_GOALS: Array<{
   },
 ];
 
+/** 14 дней: шаги и экранное время, как будто автоматизация и ручная запись уже поработали. */
+const SAMPLE_HEALTH_DAYS = 14;
+
 const SAMPLE_NOTES = [
   {
     title: "Формула Тейлора",
@@ -293,6 +296,26 @@ async function main(): Promise<void> {
   );
   await client.batch(contributionStatements, "write");
   console.log(`Целей накоплений: ${SAMPLE_GOALS.length}, пополнений: ${contributionStatements.length}.`);
+
+  // ─── Здоровье ───────────────────────────────────────────────────────────────
+  // Шаги — как будто из автоматизации, экранное время — как будто занесено
+  // руками (у него и правда нет автоматизации, см. actions/health.ts).
+  // Один день пропущен намеренно, чтобы полосы ритма показали и пропуск.
+  const healthStatements: Array<{ sql: string; args: (string | number | null)[] }> = [];
+  for (let dayOffset = 0; dayOffset < SAMPLE_HEALTH_DAYS; dayOffset += 1) {
+    if (dayOffset === 3) continue; // пропущенный день
+
+    const steps = 4000 + Math.round(Math.random() * 8000);
+    const screenTimeMinutes = 90 + Math.round(Math.random() * 240);
+
+    healthStatements.push({
+      sql: `INSERT INTO health_daily (date, steps, screen_time_minutes, updated_at)
+            VALUES (?, ?, ?, ?)`,
+      args: [daysAgo(dayOffset), steps, screenTimeMinutes, now],
+    });
+  }
+  await client.batch(healthStatements, "write");
+  console.log(`Дней с показателями здоровья: ${healthStatements.length}.`);
 
   // ─── Заметки ────────────────────────────────────────────────────────────────
   await client.batch(

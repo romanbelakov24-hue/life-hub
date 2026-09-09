@@ -4,6 +4,7 @@ import { Rocket } from "lucide-react";
 import { PageHeader } from "@/components/layout/app-shell";
 import { HealthExport } from "@/components/health/health-export";
 import { HealthReadings } from "@/components/health/health-readings";
+import { ScreenTimeLog } from "@/components/health/screen-time-log";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { requireUser } from "@/lib/auth/user";
 import { getLatestHealth, listHealthInRange } from "@/lib/queries/health";
@@ -44,7 +45,16 @@ export default async function HealthPage() {
   const byDate = new Map(recentRaw.map((day) => [day.date, day]));
   const recent = Array.from({ length: 14 }, (_, index) => {
     const date = addDays(twoWeeksAgo, index);
-    return byDate.get(date) ?? { date, steps: null, sleepMinutes: null, restingHeartRate: null, updatedAt: "" };
+    return (
+      byDate.get(date) ?? {
+        date,
+        steps: null,
+        sleepMinutes: null,
+        restingHeartRate: null,
+        screenTimeMinutes: null,
+        updatedAt: "",
+      }
+    );
   });
 
   return (
@@ -62,8 +72,9 @@ export default async function HealthPage() {
       <div className="flex flex-col gap-4">
         <HealthExport webhookUrl={`${origin}/api/health/${token}`} />
         <HealthReadings latest={latest} recent={recent} />
+        <ScreenTimeLog today={today} index={2} />
 
-        <Panel index={2}>
+        <Panel index={3}>
           <PanelHeader
             eyebrow="Дальше"
             title="Что ещё в планах"

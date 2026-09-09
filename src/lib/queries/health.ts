@@ -13,6 +13,7 @@ function mapRow(row: Row): HealthDaily {
     steps: nullableNum(row, "steps"),
     sleepMinutes: nullableNum(row, "sleep_minutes"),
     restingHeartRate: nullableNum(row, "resting_heart_rate"),
+    screenTimeMinutes: nullableNum(row, "screen_time_minutes"),
     updatedAt: str(row, "updated_at"),
   };
 }
@@ -29,7 +30,7 @@ export async function listHealthInRange(
 ): Promise<HealthDaily[]> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT date, steps, sleep_minutes, resting_heart_rate, updated_at
+    sql: `SELECT date, steps, sleep_minutes, resting_heart_rate, screen_time_minutes, updated_at
             FROM health_daily
            WHERE user_id = ? AND date BETWEEN ? AND ?
            ORDER BY date ASC`,
@@ -43,7 +44,7 @@ export async function listHealthInRange(
 export async function getLatestHealth(userId: string): Promise<HealthDaily | null> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT date, steps, sleep_minutes, resting_heart_rate, updated_at
+    sql: `SELECT date, steps, sleep_minutes, resting_heart_rate, screen_time_minutes, updated_at
             FROM health_daily
            WHERE user_id = ?
            ORDER BY date DESC
