@@ -190,6 +190,22 @@ async function main(): Promise<void> {
   await client.batch(SCHEMA_STATEMENTS, "write");
   await client.batch(SEED_STATEMENTS, "write");
 
+  // Лимиты на часть категорий — чтобы блок «Бюджеты по категориям» было на
+  // чём посмотреть. Суммы подобраны так, что при случайных тратах ниже одни
+  // категории остаются в запасе, а другие подходят к лимиту или переходят его.
+  await client.batch(
+    [
+      { id: "cat_groceries", limit: 9000 },
+      { id: "cat_food", limit: 3500 },
+      { id: "cat_fun", limit: 2000 },
+      { id: "cat_transport", limit: 2500 },
+    ].map((category) => ({
+      sql: `UPDATE categories SET monthly_limit = ? WHERE id = ?`,
+      args: [category.limit, category.id],
+    })),
+    "write",
+  );
+
   // ─── Траты за последние 60 дней ─────────────────────────────────────────────
   const expenseStatements: Array<{ sql: string; args: (string | number)[] }> = [];
   const now = new Date().toISOString();
