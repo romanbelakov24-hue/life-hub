@@ -9,6 +9,11 @@ import { formatRelativeDay } from "@/lib/utils/date";
  * Ближайшие дела из календаря.
  * Компонент серверный: список не меняется в процессе просмотра обзора,
  * поэтому клиентская интерактивность здесь не нужна.
+ *
+ * Каждое дело — посадочный талон (.pass-card, globals.css): корешок цветом
+ * дела + пунктирный отрыв, вместо ряда с тонкой чёрточкой слева. Тот же
+ * язык, что у последних трат в MoneyCard рядом — оба виджета «Обзора»
+ * говорят об элементах списка одинаково.
  */
 
 interface TodayCardProps {
@@ -41,34 +46,26 @@ export function TodayCard({ events, today, index }: TodayCardProps) {
           Ничего не запланировано.
         </p>
       ) : (
-        <ul className="mt-4 flex flex-col">
-          {events.map((event, eventIndex) => (
-            <li
-              key={event.id}
-              className={
-                eventIndex === 0 ? "flex gap-3 py-2" : "flex gap-3 border-t border-line py-2"
-              }
-            >
-              <div className="flex w-[70px] shrink-0 flex-col">
-                <span className="text-[12px] font-medium text-ink">
-                  {formatRelativeDay(event.date, today)}
-                </span>
-                {event.startTime ? (
-                  <span className="tabular text-[11px] text-ink-faint">{event.startTime}</span>
-                ) : null}
-              </div>
+        <ul className="mt-4 flex flex-col gap-2">
+          {events.map((event) => (
+            <li key={event.id} className="pass-card bg-surface-2/70">
+              <span className="pass-stub" style={{ backgroundColor: event.color }} aria-hidden />
+              <div className="pass-body flex min-w-0 flex-1 items-center gap-3 py-2 pl-3 pr-3">
+                <div className="flex w-[68px] shrink-0 flex-col">
+                  <span className="text-[12px] font-medium text-ink">
+                    {formatRelativeDay(event.date, today)}
+                  </span>
+                  {event.startTime ? (
+                    <span className="tabular text-[11px] text-ink-faint">{event.startTime}</span>
+                  ) : null}
+                </div>
 
-              <span
-                className="w-[3px] shrink-0 rounded-full"
-                style={{ backgroundColor: event.color }}
-                aria-hidden
-              />
-
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-ink">{event.title}</p>
-                {event.location ? (
-                  <p className="truncate text-[11px] text-ink-muted">{event.location}</p>
-                ) : null}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-ink">{event.title}</p>
+                  {event.location ? (
+                    <p className="truncate text-[11px] text-ink-muted">{event.location}</p>
+                  ) : null}
+                </div>
               </div>
             </li>
           ))}

@@ -142,6 +142,76 @@ export function ShareBar({ value, color, className }: ShareBarProps) {
   );
 }
 
+// ─── Кольцо-индикатор доли ────────────────────────────────────────────────────
+
+interface ProgressRingProps {
+  /** Доля 0…100 (значения выше 100 рисуются как полное кольцо). */
+  value: number;
+  color: string;
+  /** Диаметр в px. */
+  size?: number;
+  strokeWidth?: number;
+  className?: string;
+  children?: ReactNode;
+}
+
+/**
+ * Кольцевой аналог ShareBar — там же, где важнее один крупный акцент, чем
+ * ряд полос (герой виджета, а не список категорий).
+ *
+ * Заполнение анимируется от нуля через .animate-ring в globals.css: значение
+ * приходит с сервера уже готовым, а рисуется оно от пустого кольца при
+ * появлении — тот же приём, что у ShareBar/.animate-grow, просто по дуге.
+ */
+export function ProgressRing({
+  value,
+  color,
+  size = 84,
+  strokeWidth = 8,
+  className,
+  children,
+}: ProgressRingProps) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(100, Math.max(0, value));
+  const offset = circumference * (1 - clamped / 100);
+
+  return (
+    <div className={cn("relative inline-flex shrink-0 items-center justify-center", className)}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--surface-3)"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          className="animate-ring"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          style={
+            {
+              "--circumference": circumference,
+              "--offset": offset,
+            } as React.CSSProperties
+          }
+        />
+      </svg>
+
+      {children ? <div className="absolute inset-0 flex flex-col items-center justify-center">{children}</div> : null}
+    </div>
+  );
+}
+
 // ─── Крупная цифра метрики ───────────────────────────────────────────────────
 
 interface MetricBaseProps {

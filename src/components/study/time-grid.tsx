@@ -162,7 +162,7 @@ export function TimeGrid({ days, eventsByDate, today, onEventClick, onSlotClick 
                       key={event.id}
                       type="button"
                       onClick={() => onEventClick(event)}
-                      className="absolute cursor-pointer overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-white shadow-sm"
+                      className="glass-inset absolute cursor-pointer overflow-hidden rounded-[6px] px-1.5 py-1 text-left text-white shadow-sm"
                       style={{
                         top,
                         height: Math.max(height, 20),

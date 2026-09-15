@@ -251,7 +251,7 @@ function MonthGrid({
                 "flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px]",
                 "transition-colors duration-200",
                 isToday
-                  ? "bg-accent-soft text-accent"
+                  ? "pulse-today bg-accent-soft text-accent"
                   : inMonth
                     ? "text-ink hover:bg-surface-2"
                     : "text-ink-faint hover:bg-surface-2",
