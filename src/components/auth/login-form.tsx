@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, TextInput } from "@/components/ui/field";
 import { loginAction } from "@/lib/actions/auth";
 
-export function LoginForm() {
+export function LoginForm({ registrationOpen }: { registrationOpen: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -64,12 +64,14 @@ export function LoginForm() {
         {isPending ? "Входим…" : "Войти"}
       </Button>
 
-      <p className="text-center text-[13px] text-ink-muted">
-        Ещё нет аккаунта?{" "}
-        <Link href="/register" className="font-medium text-accent hover:underline">
-          Создать
-        </Link>
-      </p>
+      {registrationOpen ? (
+        <p className="text-center text-[13px] text-ink-muted">
+          Ещё нет аккаунта?{" "}
+          <Link href="/register" className="font-medium text-accent hover:underline">
+            Создать
+          </Link>
+        </p>
+      ) : null}
     </form>
   );
 }

@@ -24,6 +24,9 @@ export const SHARE_ENABLED_KEY = "share_summary_enabled";
 /** Ключ токена приёма данных здоровья от «Быстрых команд». */
 export const HEALTH_TOKEN_KEY = "health_import_token";
 
+/** Ключ SHA-256-хеша токена агента KAIROS (сам токен не хранится). */
+export const AGENT_TOKEN_HASH_KEY = "agent_token_sha256";
+
 export async function getSetting(userId: string, key: string): Promise<string | null> {
   const client = await db();
   const result = await client.execute({
@@ -156,4 +159,64 @@ export async function rotateHealthToken(userId: string): Promise<string> {
   const token = createFeedToken();
   await setSetting(userId, HEALTH_TOKEN_KEY, token);
   return token;
+}
+
+// ─── Токен агента ────────────────────────────────────────────────────────────
+
+/**
+ * Токен агента устроен иначе, чем токены выше, и намеренно.
+ *
+ * Лента календаря, сводка и вебхук здоровья хранят токен как есть: он входит в
+ * адрес, который владелец должен иметь возможность снова открыть и скопировать,
+ * а утечка даёт в худшем случае чтение одной ленты или запись шагов. Токен
+ * агента даёт запись в задачи, траты, календарь и заметки — это ключ API.
+ * Поэтому в базе лежит только его SHA-256: утечка дампа базы не даёт доступа,
+ * а сам токен показывается один раз при выпуске (как ключи у GitHub или
+ * Anthropic) и восстановить его нельзя — только выпустить новый.
+ *
+ * Префикс lh_agent_ нужен сканерам секретов: по нему случайно закоммиченный
+ * токен узнаётся с первого взгляда. Тело — 40 hex-символов, 160 бит.
+ */
+
+const AGENT_TOKEN_PREFIX = "lh_agent_";
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function createAgentToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${AGENT_TOKEN_PREFIX}${hex}`;
+}
+
+/** Выпускает новый токен агента (старый перестаёт работать) и возвращает его — единственный раз. */
+export async function issueAgentToken(userId: string): Promise<string> {
+  const token = createAgentToken();
+  await setSetting(userId, AGENT_TOKEN_HASH_KEY, await sha256Hex(token));
+  return token;
+}
+
+export async function hasAgentToken(userId: string): Promise<boolean> {
+  return (await getSetting(userId, AGENT_TOKEN_HASH_KEY)) !== null;
+}
+
+/** Отзывает доступ агента целиком. */
+export async function revokeAgentToken(userId: string): Promise<void> {
+  const client = await db();
+  await client.execute({
+    sql: `DELETE FROM settings WHERE user_id = ? AND key = ?`,
+    args: [userId, AGENT_TOKEN_HASH_KEY],
+  });
+}
+
+/**
+ * Владелец токена агента или null. Сравнивается хеш предъявленного токена с
+ * сохранёнными хешами — тем же перебором за постоянное время, что и
+ * findUserIdByToken. Токен без префикса отсекается сразу, без обращения к базе.
+ */
+export async function findUserIdByAgentToken(token: string): Promise<string | null> {
+  if (!token.startsWith(AGENT_TOKEN_PREFIX)) return null;
+  return findUserIdByToken(AGENT_TOKEN_HASH_KEY, await sha256Hex(token));
 }

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { failure, guard, success, type ActionResult } from "@/lib/actions/types";
 import {
+  issueAgentToken,
+  revokeAgentToken,
   rotateCalendarToken,
   rotateHealthToken,
   rotateShareToken,
@@ -70,5 +72,30 @@ export async function regenerateHealthToken(): Promise<ActionResult<{ token: str
 
     revalidatePath("/health");
     return success({ token });
+  });
+}
+
+/**
+ * Выпускает токен агента KAIROS — впервые или взамен старого.
+ *
+ * Токен возвращается ровно один раз: в базе остаётся только его хеш (см.
+ * queries/settings.ts). Старый токен, если был, с этого момента не принимается.
+ */
+export async function issueAgentAccess(): Promise<ActionResult<{ token: string }>> {
+  return guard(async (userId) => {
+    const token = await issueAgentToken(userId);
+
+    revalidatePath("/settings");
+    return success({ token });
+  });
+}
+
+/** Отзывает доступ агента: следующий его запрос получит 401. */
+export async function revokeAgentAccess(): Promise<ActionResult<null>> {
+  return guard(async (userId) => {
+    await revokeAgentToken(userId);
+
+    revalidatePath("/settings");
+    return success(null);
   });
 }

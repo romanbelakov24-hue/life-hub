@@ -5,17 +5,18 @@ import { redirect } from "next/navigation";
 import { failure, type ActionResult } from "@/lib/actions/types";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { seedCategoriesForUser } from "@/lib/queries/expenses";
 import { claimLegacyData, createUser, findUserByEmail, hasAnyUser } from "@/lib/queries/users";
 import { createId } from "@/lib/utils/id";
 
 /**
  * Вход и регистрация.
  *
- * Регистрация открытая (без приглашений) — значит, нужна хоть какая-то защита
- * от ботов. Полноценной (капча) пока нет, но honeypot-поле в форме её частично
- * заменяет: реальный человек его не видит и не заполняет, бот, слепо
- * заполняющий все поля формы, — заполняет, и его просто тихо отбрасывают.
+ * Регистрация с 15.09.2026 закрыта: создать можно только первый аккаунт в
+ * пустой базе (см. isRegistrationOpen в queries/users.ts). Проверка стоит здесь,
+ * а не только на странице — действие можно вызвать и в обход формы.
+ * Honeypot-поле в форме осталось: реальный человек его не видит и не
+ * заполняет, бот, слепо заполняющий все поля формы, — заполняет, и его тихо
+ * отбрасывают.
  *
  * Без guard() из actions/types.ts: он рассчитан на уже вошедшего пользователя
  * (сам достаёт userId и отказывает без сессии) — а вход и регистрация как раз
@@ -62,12 +63,12 @@ export async function registerAction(input: RegisterInput): Promise<ActionResult
   if (passwordError) return failure(passwordError);
 
   try {
+    // Регистрация открыта только для первого аккаунта. Проверяем ДО создания
+    // пользователя: как только он появится, hasAnyUser() уже ответит «да».
+    if (await hasAnyUser()) return failure("Регистрация закрыта.");
+
     const existing = await findUserByEmail(email);
     if (existing) return failure("Такой email уже зарегистрирован.");
-
-    // Проверяем ДО создания пользователя: как только он появится, hasAnyUser()
-    // уже ответит «да», и определить, что это был первый, станет невозможно.
-    const isFirstUser = !(await hasAnyUser());
 
     const userId = createId("user");
     await createUser({
@@ -78,15 +79,11 @@ export async function registerAction(input: RegisterInput): Promise<ActionResult
       createdAt: new Date().toISOString(),
     });
 
-    if (isFirstUser) {
-      // Данные, накопленные до многопользовательского режима, принадлежат
-      // тому, кто зарегистрировался первым — обычно это владелец сайта.
-      await claimLegacyData(userId);
-    } else {
-      // У всех остальных база пустая — без стартового набора категорий
-      // раздел расходов был бы бесполезен с первой секунды.
-      await seedCategoriesForUser(userId);
-    }
+    // Данные, накопленные до многопользовательского режима (включая базовые
+    // категории), принадлежат первому зарегистрировавшемуся — владельцу сайта.
+    // Если регистрацию когда-нибудь откроют снова (например, по приглашениям),
+    // остальным понадобится seedCategoriesForUser из queries/expenses.ts.
+    await claimLegacyData(userId);
 
     await createSession(userId);
   } catch (error) {

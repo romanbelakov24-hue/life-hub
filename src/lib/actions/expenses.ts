@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db/client";
 import { failure, guard, success, type ActionResult } from "@/lib/actions/types";
+import {
+  categoryBelongsToUser,
+  insertExpense,
+  validateExpense,
+  type ExpenseInput,
+} from "@/lib/mutations/expenses";
 import { countExpensesByCategory } from "@/lib/queries/expenses";
-import type { IsoDate } from "@/lib/types";
-import { isValidIso } from "@/lib/utils/date";
 import { roundTo } from "@/lib/utils/format";
 import { createId } from "@/lib/utils/id";
 
@@ -16,29 +20,15 @@ import { createId } from "@/lib/utils/id";
  * Каждое действие само валидирует входные данные (клиенту доверять нельзя даже
  * в личном приложении — опечатка в форме не должна класть базу) и после записи
  * дёргает revalidatePath, чтобы серверные страницы перечитали данные.
+ *
+ * Создание траты и её проверка — в lib/mutations/expenses.ts: те же функции
+ * вызывает API агента.
  */
 
 /** Страницы, которые показывают траты. Обновляем их после любой записи. */
 function revalidateExpenseViews(): void {
   revalidatePath("/expenses");
   revalidatePath("/");
-}
-
-export interface ExpenseInput {
-  date: IsoDate;
-  categoryId: string;
-  note: string;
-  amount: number;
-}
-
-/** Общая проверка полей траты. Возвращает текст ошибки или null. */
-function validateExpense(input: ExpenseInput): string | null {
-  if (!isValidIso(input.date)) return "Неверная дата.";
-  if (!input.categoryId) return "Выберите категорию.";
-  if (!Number.isFinite(input.amount) || input.amount <= 0) return "Сумма должна быть больше нуля.";
-  if (input.amount > 100_000_000) return "Слишком большая сумма.";
-  if (input.note.length > 200) return "Заметка длиннее 200 символов.";
-  return null;
 }
 
 // ─── Траты ───────────────────────────────────────────────────────────────────
@@ -48,22 +38,8 @@ export async function createExpense(input: ExpenseInput): Promise<ActionResult<{
     const error = validateExpense(input);
     if (error) return failure(error);
 
-    const client = await db();
-    const id = createId("exp");
-
-    await client.execute({
-      sql: `INSERT INTO expenses (id, date, category_id, note, amount, created_at, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id,
-        input.date,
-        input.categoryId,
-        input.note.trim(),
-        roundTo(input.amount, 2),
-        new Date().toISOString(),
-        userId,
-      ],
-    });
+    const id = await insertExpense(userId, input);
+    if (!id) return failure("Категория не найдена.");
 
     revalidateExpenseViews();
     return success({ id });
@@ -77,6 +53,9 @@ export async function updateExpense(
   return guard(async (userId) => {
     const error = validateExpense(input);
     if (error) return failure(error);
+    if (!(await categoryBelongsToUser(userId, input.categoryId))) {
+      return failure("Категория не найдена.");
+    }
 
     const client = await db();
     const result = await client.execute({

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
 import { getCurrentUser } from "@/lib/auth/user";
+import { isRegistrationOpen } from "@/lib/queries/users";
 
 /**
  * Вход. Лежит вне группы `(app)`: у неё своя, отдельная от AppShell, разметка,
@@ -22,7 +23,7 @@ export default async function LoginPage() {
 
   return (
     <AuthShell title="Вход" description="Личный трекер расходов и учебный планер">
-      <LoginForm />
+      <LoginForm registrationOpen={await isRegistrationOpen()} />
     </AuthShell>
   );
 }

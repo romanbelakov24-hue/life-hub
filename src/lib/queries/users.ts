@@ -54,6 +54,19 @@ export async function hasAnyUser(): Promise<boolean> {
   return result.rows.length > 0;
 }
 
+/**
+ * Открыта ли регистрация.
+ *
+ * С 15.09.2026 — только пока в базе нет ни одного аккаунта. Сюда переезжают
+ * рабочие данные с чужими персональными данными (клиенты, контакты), и
+ * приложению с ними незачем пускать к себе кого угодно. Первый аккаунт
+ * по-прежнему создаётся свободно — иначе новую установку или пустую базу
+ * было бы не с чего начать.
+ */
+export async function isRegistrationOpen(): Promise<boolean> {
+  return !(await hasAnyUser());
+}
+
 export async function createUser(input: {
   id: string;
   email: string;

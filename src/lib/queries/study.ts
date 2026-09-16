@@ -127,6 +127,60 @@ export async function listTasks(userId: string): Promise<Task[]> {
   return result.rows.map(mapTask);
 }
 
+export async function findTask(userId: string, id: string): Promise<Task | null> {
+  const client = await db();
+  const result = await client.execute({
+    sql: `${TASK_SELECT} WHERE user_id = ? AND id = ?`,
+    args: [userId, id],
+  });
+
+  const row = result.rows[0];
+  return row ? mapTask(row) : null;
+}
+
+export interface TaskFilter {
+  status: "open" | "done" | "all";
+  /** Границы дедлайна включительно. Задачи без срока при заданных границах не попадают. */
+  from?: IsoDate;
+  to?: IsoDate;
+  limit: number;
+}
+
+/**
+ * Задачи с фильтром — для API агента (брифинг, вечерний разбор).
+ * Порядок тот же, что у listTasks. Условия собираются из фиксированных
+ * фрагментов, значения идут только параметрами.
+ */
+export async function listTasksFiltered(userId: string, filter: TaskFilter): Promise<Task[]> {
+  const where = ["user_id = ?"];
+  const args: (string | number)[] = [userId];
+
+  if (filter.status === "open") where.push("done = 0");
+  if (filter.status === "done") where.push("done = 1");
+  if (filter.from) {
+    where.push("due_date <> '' AND due_date >= ?");
+    args.push(filter.from);
+  }
+  if (filter.to) {
+    where.push("due_date <> '' AND due_date <= ?");
+    args.push(filter.to);
+  }
+
+  const client = await db();
+  const result = await client.execute({
+    sql: `${TASK_SELECT}
+           WHERE ${where.join(" AND ")}
+           ORDER BY done ASC,
+                    CASE WHEN due_date = '' THEN 1 ELSE 0 END ASC,
+                    due_date ASC,
+                    created_at DESC
+           LIMIT ?`,
+    args: [...args, filter.limit],
+  });
+
+  return result.rows.map(mapTask);
+}
+
 /** Невыполненные задачи с дедлайном не позже указанной даты — виджет обзора. */
 export async function listTasksDueBy(
   userId: string,
