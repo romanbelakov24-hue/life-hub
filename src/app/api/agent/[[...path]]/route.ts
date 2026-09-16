@@ -64,6 +64,9 @@ type Section = (typeof SECTIONS)[number];
 
 const MAX_LIMIT = 200;
 
+/** Предел названия задачи — тот же, что проверяет validateTask в lib/mutations/study.ts. */
+const TASK_TITLE_MAX = 160;
+
 // ─── Ответы ──────────────────────────────────────────────────────────────────
 
 function json(body: unknown, status = 200): Response {
@@ -147,9 +150,17 @@ async function createTaskHandler(userId: string, request: Request): Promise<Resp
   const priority = body.priority ?? "P2";
   if (!isPriority(priority)) throw new BadRequest("Поле «priority»: P1, P2 или P3.");
 
+  const rawTitle = (optionalString(body, "title") ?? "").trim();
+  const rawNote = optionalString(body, "note") ?? "";
+
+  // Надиктованная задача бывает длиннее названия в форме: сценарий захвата
+  // KAIROS режет до 200 символов, а здесь предел 160. Отказ из-за длины увёл бы
+  // задачу мимо life hub во временный инбокс Notion, поэтому название
+  // укорачивается, а полная формулировка сохраняется первой строкой заметки.
+  const tooLong = rawTitle.length > TASK_TITLE_MAX;
   const input: TaskInput = {
-    title: optionalString(body, "title") ?? "",
-    description: optionalString(body, "note") ?? "",
+    title: tooLong ? `${rawTitle.slice(0, TASK_TITLE_MAX - 1).trimEnd()}…` : rawTitle,
+    description: tooLong ? [rawTitle, rawNote].filter(Boolean).join("\n\n") : rawNote,
     dueDate: optionalString(body, "due") ?? "",
     subject: optionalString(body, "subject") ?? "",
     ...priorityToFlags(priority),
