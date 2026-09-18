@@ -170,7 +170,7 @@ async function createTaskHandler(userId: string, request: Request): Promise<Resp
   const error = validateTask(input);
   if (error) throw new BadRequest(error);
 
-  const id = await insertTask(userId, input);
+  const id = await insertTask(userId, input, "agent");
   const task = await findTask(userId, id);
 
   revalidateStudy();
@@ -261,7 +261,7 @@ async function createExpenseHandler(userId: string, request: Request): Promise<R
   const error = validateExpense(input);
   if (error) throw new BadRequest(error);
 
-  const id = await insertExpense(userId, input);
+  const id = await insertExpense(userId, input, "agent");
   if (!id) return fail(409, "Категория не найдена.");
 
   revalidatePath("/expenses");
@@ -317,7 +317,7 @@ async function createScheduleHandler(userId: string, request: Request): Promise<
   const error = validateEvent(input);
   if (error) throw new BadRequest(error);
 
-  const id = await insertEvents(userId, input);
+  const id = await insertEvents(userId, input, "agent");
 
   revalidatePath("/schedule");
   revalidatePath("/");
@@ -363,7 +363,7 @@ async function createNoteHandler(userId: string, request: Request): Promise<Resp
   const error = validateNote(input);
   if (error) throw new BadRequest(error);
 
-  const id = await insertNote(userId, input);
+  const id = await insertNote(userId, input, "agent");
 
   revalidateStudy();
   return json(

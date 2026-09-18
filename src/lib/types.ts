@@ -10,6 +10,12 @@
 /** Дата в формате ISO `YYYY-MM-DD` (без времени и таймзоны). */
 export type IsoDate = string;
 
+/**
+ * Откуда появилась запись: интерфейс, API агента (KAIROS) или Telegram-бот.
+ * Не задано — то же, что "app".
+ */
+export type RecordSource = "app" | "agent" | "telegram";
+
 /** День недели: 1 — понедельник … 7 — воскресенье (стандарт ISO-8601). */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -52,6 +58,7 @@ export interface Expense {
   /** Сумма в рублях. Храним числом с плавающей точкой (копейки поддерживаются). */
   amount: number;
   createdAt: string;
+  source?: RecordSource;
 }
 
 /** Трата вместе с раскрытой категорией — то, что реально рендерит таблица. */
@@ -234,6 +241,7 @@ export interface CalendarEvent {
   description: string;
   color: string;
   createdAt: string;
+  source?: RecordSource;
 }
 
 export interface Note {
@@ -245,6 +253,7 @@ export interface Note {
   subject: string;
   createdAt: string;
   updatedAt: string;
+  source?: RecordSource;
 }
 
 export interface Task {
@@ -261,6 +270,7 @@ export interface Task {
   subject: string;
   createdAt: string;
   completedAt: string | null;
+  source?: RecordSource;
 }
 
 /** Квадрант матрицы Эйзенхауэра, вычисляется из флагов urgent/important. */

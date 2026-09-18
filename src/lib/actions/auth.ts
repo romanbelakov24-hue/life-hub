@@ -5,15 +5,21 @@ import { redirect } from "next/navigation";
 import { failure, type ActionResult } from "@/lib/actions/types";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { claimLegacyData, createUser, findUserByEmail, hasAnyUser } from "@/lib/queries/users";
+import { seedCategoriesForUser } from "@/lib/queries/expenses";
+import {
+  claimLegacyData,
+  createUser,
+  findUserByEmail,
+  hasAnyUser,
+  isRegistrationOpen,
+} from "@/lib/queries/users";
 import { createId } from "@/lib/utils/id";
 
 /**
  * Вход и регистрация.
  *
- * Регистрация с 15.09.2026 закрыта: создать можно только первый аккаунт в
- * пустой базе (см. isRegistrationOpen в queries/users.ts). Проверка стоит здесь,
- * а не только на странице — действие можно вызвать и в обход формы.
+ * Регистрация открыта всем (см. isRegistrationOpen в queries/users.ts). Проверка
+ * стоит здесь, а не только на странице — действие можно вызвать и в обход формы.
  * Honeypot-поле в форме осталось: реальный человек его не видит и не
  * заполняет, бот, слепо заполняющий все поля формы, — заполняет, и его тихо
  * отбрасывают.
@@ -63,9 +69,10 @@ export async function registerAction(input: RegisterInput): Promise<ActionResult
   if (passwordError) return failure(passwordError);
 
   try {
-    // Регистрация открыта только для первого аккаунта. Проверяем ДО создания
-    // пользователя: как только он появится, hasAnyUser() уже ответит «да».
-    if (await hasAnyUser()) return failure("Регистрация закрыта.");
+    if (!(await isRegistrationOpen())) return failure("Регистрация закрыта.");
+    // Первый ли это аккаунт в базе — узнаём ДО создания: потом hasAnyUser()
+    // уже ответит «да».
+    const isFirstUser = !(await hasAnyUser());
 
     const existing = await findUserByEmail(email);
     if (existing) return failure("Такой email уже зарегистрирован.");
@@ -79,11 +86,13 @@ export async function registerAction(input: RegisterInput): Promise<ActionResult
       createdAt: new Date().toISOString(),
     });
 
-    // Данные, накопленные до многопользовательского режима (включая базовые
-    // категории), принадлежат первому зарегистрировавшемуся — владельцу сайта.
-    // Если регистрацию когда-нибудь откроют снова (например, по приглашениям),
-    // остальным понадобится seedCategoriesForUser из queries/expenses.ts.
-    await claimLegacyData(userId);
+    // Строки без владельца (данные времён одного пользователя без аккаунта,
+    // демо-данные в local.db) достаются только самому первому аккаунту — иначе
+    // их получил бы случайный следующий зарегистрировавшийся.
+    if (isFirstUser) await claimLegacyData(userId);
+    // Стартовые категории — каждому; у первого совпавшие по названию с
+    // забранными просто пропускаются.
+    await seedCategoriesForUser(userId);
 
     await createSession(userId);
   } catch (error) {

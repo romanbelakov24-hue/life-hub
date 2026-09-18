@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { NoteEditor } from "@/components/study/note-editor";
 import { Button } from "@/components/ui/button";
 import { Field, TextInput } from "@/components/ui/field";
-import { EmptyState } from "@/components/ui/misc";
+import { EmptyState, SourceBadge } from "@/components/ui/misc";
 import { Panel } from "@/components/ui/panel";
 import { colorFromString } from "@/config/palette";
 import type { IsoDate, Note } from "@/lib/types";
@@ -181,6 +181,9 @@ function NoteCard({ note, onClick }: { note: Note; onClick: () => void }) {
 
       <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-ink">
         {note.title || "Без заголовка"}
+        {note.source && note.source !== "app" ? (
+          <SourceBadge source={note.source} className="ml-1.5" />
+        ) : null}
       </p>
 
       {note.body ? (

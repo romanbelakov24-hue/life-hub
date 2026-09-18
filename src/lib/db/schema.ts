@@ -192,6 +192,65 @@ export const MIGRATIONS: Migration[] = [
        )`,
     ],
   },
+  {
+    // Общий Telegram-бот сайта (@assistent_life_hub_bot): у каждого аккаунта
+    // свой привязанный чат, бот пишет задачи, дела, траты и заметки, а по утрам
+    // присылает сводку дня.
+    version: 2,
+    name: "telegram-bot",
+    up: [
+      // Один аккаунт ↔ один личный чат. Привязка — по одноразовому коду из
+      // настроек (telegram_link_codes), а не по вводу chat_id руками.
+      // timezone нужен и для «завтра» в сообщениях, и для времени сводки —
+      // сервер живёт в UTC. last_digest_date — локальная дата последней
+      // отправленной сводки, чтобы не прислать её дважды за день.
+      `CREATE TABLE telegram_links (
+         user_id          TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+         chat_id          TEXT NOT NULL UNIQUE,
+         username         TEXT NOT NULL DEFAULT '',
+         first_name       TEXT NOT NULL DEFAULT '',
+         timezone         TEXT NOT NULL DEFAULT 'Europe/Moscow',
+         digest_enabled   INTEGER NOT NULL DEFAULT 1,
+         digest_time      TEXT NOT NULL DEFAULT '08:00',
+         last_digest_date TEXT NOT NULL DEFAULT '',
+         linked_at        TEXT NOT NULL
+       )`,
+
+      // В базе — только SHA-256 кода: код живёт в ссылке t.me/…?start=<код>, и
+      // утёкшая таблица не должна позволять привязать чужой аккаунт.
+      `CREATE TABLE telegram_link_codes (
+         code_hash  TEXT PRIMARY KEY,
+         user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+         timezone   TEXT NOT NULL DEFAULT 'Europe/Moscow',
+         expires_at TEXT NOT NULL
+       )`,
+      `CREATE INDEX idx_telegram_link_codes_user ON telegram_link_codes(user_id)`,
+
+      // Журнал бота: что пришло и что из этого записано. update_id — ключ,
+      // поэтому повторная доставка того же обновления (Telegram повторяет
+      // вебхук, если ответ задержался) не создаёт дубль. Текст сообщений не
+      // хранится — только короткое описание результата («Задача · Сдать эссе»).
+      `CREATE TABLE bot_events (
+         update_id   INTEGER PRIMARY KEY,
+         user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
+         received_at TEXT NOT NULL,
+         input_kind  TEXT NOT NULL,
+         used_ai     INTEGER NOT NULL DEFAULT 0,
+         result_kind TEXT NOT NULL DEFAULT '',
+         result_id   TEXT NOT NULL DEFAULT '',
+         summary     TEXT NOT NULL DEFAULT '',
+         undone      INTEGER NOT NULL DEFAULT 0
+       )`,
+      `CREATE INDEX idx_bot_events_user ON bot_events(user_id, received_at DESC)`,
+
+      // Откуда запись: 'app' — интерфейс, 'agent' — API агента, 'telegram' —
+      // бот. Интерфейс показывает значок у записей не из приложения.
+      `ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'app'`,
+      `ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT 'app'`,
+      `ALTER TABLE expenses ADD COLUMN source TEXT NOT NULL DEFAULT 'app'`,
+      `ALTER TABLE notes ADD COLUMN source TEXT NOT NULL DEFAULT 'app'`,
+    ],
+  },
 ];
 
 /** Номер последней миграции — до него должна быть доведена база. */

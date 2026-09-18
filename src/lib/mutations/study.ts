@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db/client";
-import type { IsoDate } from "@/lib/types";
+import type { IsoDate, RecordSource } from "@/lib/types";
 import { isValidIso } from "@/lib/utils/date";
 import { createId } from "@/lib/utils/id";
 
@@ -43,14 +43,18 @@ export function validateTask(input: TaskInput): string | null {
 }
 
 /** Создаёт задачу и возвращает её id. Вход должен быть уже проверен validateTask. */
-export async function insertTask(userId: string, input: TaskInput): Promise<string> {
+export async function insertTask(
+  userId: string,
+  input: TaskInput,
+  source: RecordSource = "app",
+): Promise<string> {
   const client = await db();
   const id = createId("task");
 
   await client.execute({
     sql: `INSERT INTO tasks
-            (id, user_id, title, description, due_date, done, urgent, important, subject, created_at, completed_at)
-          VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NULL)`,
+            (id, user_id, title, description, due_date, done, urgent, important, subject, created_at, completed_at, source)
+          VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NULL, ?)`,
     args: [
       id,
       userId,
@@ -61,6 +65,7 @@ export async function insertTask(userId: string, input: TaskInput): Promise<stri
       input.important ? 1 : 0,
       input.subject.trim(),
       new Date().toISOString(),
+      source,
     ],
   });
 
@@ -123,15 +128,29 @@ export function validateNote(input: NoteInput): string | null {
 }
 
 /** Создаёт заметку и возвращает её id. Вход должен быть уже проверен validateNote. */
-export async function insertNote(userId: string, input: NoteInput): Promise<string> {
+export async function insertNote(
+  userId: string,
+  input: NoteInput,
+  source: RecordSource = "app",
+): Promise<string> {
   const client = await db();
   const id = createId("note");
   const now = new Date().toISOString();
 
   await client.execute({
-    sql: `INSERT INTO notes (id, user_id, title, body, date, subject, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, userId, input.title.trim(), input.body.trim(), input.date, input.subject.trim(), now, now],
+    sql: `INSERT INTO notes (id, user_id, title, body, date, subject, created_at, updated_at, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      userId,
+      input.title.trim(),
+      input.body.trim(),
+      input.date,
+      input.subject.trim(),
+      now,
+      now,
+      source,
+    ],
   });
 
   return id;

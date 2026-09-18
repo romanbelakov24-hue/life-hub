@@ -3,7 +3,9 @@
   // Имя воркера на Cloudflare — часть адреса по умолчанию
   // (<name>.<аккаунт>.workers.dev), пока не подключён свой домен.
   "name": "life-hub",
-  "main": ".open-next/worker.js",
+  // Своя точка входа поверх сгенерированной OpenNext: добавляет обработчик
+  // расписания для утренних сводок бота (см. custom-worker.ts).
+  "main": "custom-worker.ts",
   "compatibility_date": "2026-09-01",
   // nodejs_compat нужен и для node:crypto (пароли, токены сессий), и для
   // самого OpenNext-адаптера.
@@ -11,6 +13,21 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  // Workers AI — разбор сообщений и голосовых в Telegram-боте. Работает в этом
+  // же аккаунте Cloudflare, бесплатная квота — 10 000 «нейронов» в сутки.
+  "ai": {
+    "binding": "AI"
+  },
+  // Каждые 15 минут: разослать утренние сводки тем, у кого подошло время.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  // Не секреты. Секреты (TURSO_*, TELEGRAM_BOT_TOKEN) — через
+  // `npx wrangler secret put <ИМЯ>`, в этот файл их не писать.
+  "vars": {
+    "SITE_URL": "https://life-hub.aarara.workers.dev",
+    "TELEGRAM_BOT_USERNAME": "assistent_life_hub_bot"
   }
   // KV для кэша инкрементальной сборки Next намеренно не подключён: у
   // приложения нет ISR — почти каждая страница объявлена force-dynamic

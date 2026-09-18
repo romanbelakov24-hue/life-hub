@@ -3,7 +3,7 @@ import "server-only";
 import type { Row } from "@libsql/client";
 
 import { db } from "@/lib/db/client";
-import { bool, num, numOrNull, str } from "@/lib/db/rows";
+import { bool, num, numOrNull, recordSource, str } from "@/lib/db/rows";
 import { DEFAULT_CATEGORIES } from "@/lib/db/schema";
 import type { Category, Expense, ExpenseWithCategory, IsoDate } from "@/lib/types";
 import { createId } from "@/lib/utils/id";
@@ -56,7 +56,7 @@ export async function seedCategoriesForUser(userId: string): Promise<void> {
   const client = await db();
   await client.batch(
     DEFAULT_CATEGORIES.map((category) => ({
-      sql: `INSERT INTO categories (id, user_id, name, color, icon, is_default, sort_order)
+      sql: `INSERT OR IGNORE INTO categories (id, user_id, name, color, icon, is_default, sort_order)
             VALUES (?, ?, ?, ?, ?, 1, ?)`,
       args: [
         createId("cat"),
@@ -80,6 +80,7 @@ const EXPENSE_SELECT = `
          e.note,
          e.amount,
          e.created_at,
+         e.source,
          c.name  AS category_name,
          c.color AS category_color,
          c.icon  AS category_icon
@@ -98,6 +99,7 @@ function mapExpense(row: Row): ExpenseWithCategory {
     categoryName: str(row, "category_name"),
     categoryColor: str(row, "category_color"),
     categoryIcon: str(row, "category_icon"),
+    source: recordSource(row),
   };
 }
 

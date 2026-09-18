@@ -16,6 +16,8 @@ import { readFileSync } from "node:fs";
 /** Файлы, которые OpenNext зашивает в воркер (режим production). */
 const BAKED_ENV_FILES = [".env", ".env.production", ".env.local", ".env.production.local"];
 const DB_KEYS = ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"];
+/** Без него сайт работает, но Telegram-бот и утренние сводки — нет. */
+const BOT_KEY = "TELEGRAM_BOT_TOKEN";
 
 function bakedKeys(): Set<string> {
   const keys = new Set<string>();
@@ -77,6 +79,14 @@ function main(): void {
               `npx wrangler secret put ${key}`,
       );
     }
+  }
+
+  if (!(secrets?.has(BOT_KEY) ?? false)) {
+    warnings.push(
+      baked.has(BOT_KEY)
+        ? `${BOT_KEY} зашивается в код воркера из .env-файла. Перенеси в секрет: npx wrangler secret put ${BOT_KEY}`
+        : `${BOT_KEY} не задан — сайт выкатится, но Telegram-бот работать не будет.`,
+    );
   }
 
   const migrations = spawnSync("npx tsx scripts/migrate.ts --prod --check", {

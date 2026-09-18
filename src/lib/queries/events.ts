@@ -3,7 +3,7 @@ import "server-only";
 import type { Row } from "@libsql/client";
 
 import { db } from "@/lib/db/client";
-import { str } from "@/lib/db/rows";
+import { recordSource, str } from "@/lib/db/rows";
 import type { CalendarEvent, IsoDate } from "@/lib/types";
 
 /**
@@ -22,11 +22,12 @@ function mapEvent(row: Row): CalendarEvent {
     description: str(row, "description"),
     color: str(row, "color"),
     createdAt: str(row, "created_at"),
+    source: recordSource(row),
   };
 }
 
 const EVENT_SELECT = `
-  SELECT id, date, start_time, end_time, title, location, description, color, created_at
+  SELECT id, date, start_time, end_time, title, location, description, color, created_at, source
     FROM events
 `;
 

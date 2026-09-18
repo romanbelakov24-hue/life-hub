@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db/client";
-import type { IsoDate } from "@/lib/types";
+import type { IsoDate, RecordSource } from "@/lib/types";
 import { isValidIso } from "@/lib/utils/date";
 import { roundTo } from "@/lib/utils/format";
 import { createId } from "@/lib/utils/id";
@@ -50,15 +50,19 @@ export async function categoryBelongsToUser(userId: string, categoryId: string):
  * Создаёт трату и возвращает её id; null — категория не принадлежит пользователю.
  * Вход должен быть уже проверен validateExpense.
  */
-export async function insertExpense(userId: string, input: ExpenseInput): Promise<string | null> {
+export async function insertExpense(
+  userId: string,
+  input: ExpenseInput,
+  source: RecordSource = "app",
+): Promise<string | null> {
   if (!(await categoryBelongsToUser(userId, input.categoryId))) return null;
 
   const client = await db();
   const id = createId("exp");
 
   await client.execute({
-    sql: `INSERT INTO expenses (id, date, category_id, note, amount, created_at, user_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO expenses (id, date, category_id, note, amount, created_at, user_id, source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       input.date,
@@ -67,6 +71,7 @@ export async function insertExpense(userId: string, input: ExpenseInput): Promis
       roundTo(input.amount, 2),
       new Date().toISOString(),
       userId,
+      source,
     ],
   });
 

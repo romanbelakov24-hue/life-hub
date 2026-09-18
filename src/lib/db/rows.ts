@@ -9,6 +9,8 @@
 
 import type { Row } from "@libsql/client";
 
+import type { RecordSource } from "@/lib/types";
+
 /** Значение колонки как строка; null/undefined -> "". */
 export function str(row: Row, key: string): string {
   const value = row[key];
@@ -50,4 +52,10 @@ export function strOrNull(row: Row, key: string): string | null {
 export function numOrNull(row: Row, key: string): number | null {
   const value = row[key];
   return value === null || value === undefined ? null : num(row, key);
+}
+
+/** Колонка source: 'app' | 'agent' | 'telegram'; всё прочее считается 'app'. */
+export function recordSource(row: Row): RecordSource {
+  const value = str(row, "source");
+  return value === "agent" || value === "telegram" ? value : "app";
 }

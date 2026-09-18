@@ -4,6 +4,7 @@ import { ArrowUpRight, Check, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
 
+import { SourceBadge } from "@/components/ui/misc";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { toggleTaskDone } from "@/lib/actions/study";
 import { isOverdue } from "@/lib/analytics/tasks";
@@ -82,8 +83,9 @@ export function TasksCard({ tasks, today, counters, index }: TasksCardProps) {
                   </span>
                 </button>
 
-                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
-                  {task.title}
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-ink">
+                  <span className="truncate">{task.title}</span>
+                  <SourceBadge source={task.source} />
                 </span>
 
                 {task.dueDate ? (

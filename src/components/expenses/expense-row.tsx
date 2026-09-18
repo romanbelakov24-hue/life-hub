@@ -3,6 +3,7 @@
 import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import { SourceBadge } from "@/components/ui/misc";
 import { IconButton } from "@/components/ui/button";
 import { AmountInput, Select, TextInput } from "@/components/ui/field";
 import { getCategoryIcon } from "@/config/icons";
@@ -172,7 +173,10 @@ export function ExpenseRow({ expense, categories }: ExpenseRowProps) {
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-ink">{expense.note || expense.categoryName}</p>
-        <p className="truncate text-[12px] text-ink-faint">{expense.categoryName}</p>
+        <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-faint">
+          <span className="truncate">{expense.categoryName}</span>
+          <SourceBadge source={expense.source} />
+        </p>
       </div>
 
       <span className="tabular shrink-0 text-sm font-medium text-ink">

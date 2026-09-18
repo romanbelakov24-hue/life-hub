@@ -78,8 +78,8 @@ export function AgentAccess({ apiBase, enabled: initialEnabled, index }: AgentAc
     <Panel index={index}>
       <PanelHeader
         eyebrow="Интеграции"
-        title="Агент KAIROS"
-        description="Задачи, траты, дела и заметки из Telegram — прямо сюда"
+        title="Свой агент по API"
+        description="Для личного ИИ-агента вроде KAIROS: доступ к задачам, тратам, делам и заметкам по токену"
       />
 
       {freshToken ? (

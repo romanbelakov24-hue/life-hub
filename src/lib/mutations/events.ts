@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db/client";
-import type { IsoDate } from "@/lib/types";
+import type { IsoDate, RecordSource } from "@/lib/types";
 import { addDays, isValidIso } from "@/lib/utils/date";
 import { createId } from "@/lib/utils/id";
 
@@ -59,7 +59,11 @@ export function validateEvent(input: EventInput): string | null {
  * Создаёт дело (или серию, если задан repeatWeeklyUntil) и возвращает id первого.
  * Вход должен быть уже проверен validateEvent.
  */
-export async function insertEvents(userId: string, input: EventInput): Promise<string> {
+export async function insertEvents(
+  userId: string,
+  input: EventInput,
+  source: RecordSource = "app",
+): Promise<string> {
   const client = await db();
   const now = new Date().toISOString();
 
@@ -83,8 +87,8 @@ export async function insertEvents(userId: string, input: EventInput): Promise<s
   await client.batch(
     rows.map(({ id, date }) => ({
       sql: `INSERT INTO events
-              (id, user_id, date, start_time, end_time, title, location, description, color, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, user_id, date, start_time, end_time, title, location, description, color, created_at, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         userId,
@@ -96,6 +100,7 @@ export async function insertEvents(userId: string, input: EventInput): Promise<s
         input.description.trim(),
         input.color,
         now,
+        source,
       ],
     })),
     "write",

@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/app-shell";
 import { MoneyCard } from "@/components/overview/money-card";
 import { NotesCard } from "@/components/overview/notes-card";
+import { TelegramHint } from "@/components/overview/telegram-hint";
 import { TasksCard } from "@/components/overview/tasks-card";
 import { TodayCard } from "@/components/overview/today-card";
 import { requireUser } from "@/lib/auth/user";
@@ -8,6 +9,8 @@ import { buildCategoryBreakdown, sumExpenses } from "@/lib/analytics/expenses";
 import { listUpcomingEvents } from "@/lib/queries/events";
 import { listExpensesInRange, listRecentExpenses, sumExpensesInRange } from "@/lib/queries/expenses";
 import { getTaskCounters, listRecentNotes, listTasksDueBy } from "@/lib/queries/study";
+import { botUsername, isBotConfigured } from "@/lib/telegram/config";
+import { findLinkByUser } from "@/lib/telegram/store";
 import {
   addDays,
   endOfMonth,
@@ -45,6 +48,7 @@ export default async function OverviewPage() {
     upcomingTasks,
     taskCounters,
     recentNotes,
+    telegramLink,
   ] = await Promise.all([
     listExpensesInRange(user.id, monthStart, monthEnd),
     sumExpensesInRange(user.id, today, today),
@@ -54,7 +58,9 @@ export default async function OverviewPage() {
     listTasksDueBy(user.id, addDays(today, 7), 5),
     getTaskCounters(user.id, today),
     listRecentNotes(user.id, 4),
+    isBotConfigured() ? findLinkByUser(user.id) : null,
   ]);
+  const showTelegramHint = isBotConfigured() && !telegramLink;
 
   return (
     <>
@@ -63,6 +69,8 @@ export default async function OverviewPage() {
         title="Сводка"
         description={`${WEEKDAY_NAMES[todayWeekday]}, ${formatDayMonth(today)}`}
       />
+
+      {showTelegramHint ? <TelegramHint botUsername={botUsername()} /> : null}
 
       {/* Бенто-сетка: расходы занимают широкую колонку, учёба — узкую. */}
       <div className="grid gap-4 lg:grid-cols-5">

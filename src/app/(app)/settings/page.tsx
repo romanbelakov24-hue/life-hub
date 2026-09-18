@@ -5,6 +5,7 @@ import { AccountPanel } from "@/components/settings/account-panel";
 import { AgentAccess } from "@/components/settings/agent-access";
 import { CalendarFeed } from "@/components/settings/calendar-feed";
 import { ShareControl } from "@/components/settings/share-control";
+import { TelegramBot } from "@/components/settings/telegram-bot";
 import { requireUser } from "@/lib/auth/user";
 import {
   getOrCreateCalendarToken,
@@ -12,6 +13,7 @@ import {
   hasAgentToken,
   isShareEnabled,
 } from "@/lib/queries/settings";
+import { loadTelegramPanel } from "@/lib/telegram/panel";
 import { resolveSiteOrigin } from "@/lib/utils/origin";
 
 /**
@@ -29,12 +31,13 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const user = await requireUser();
 
-  const [origin, calendarToken, shareToken, shareEnabled, agentEnabled] = await Promise.all([
+  const [origin, calendarToken, shareToken, shareEnabled, agentEnabled, telegram] = await Promise.all([
     resolveSiteOrigin(),
     getOrCreateCalendarToken(user.id),
     getOrCreateShareToken(user.id),
     isShareEnabled(user.id),
     hasAgentToken(user.id),
+    loadTelegramPanel(user.id),
   ]);
 
   return (
@@ -47,9 +50,10 @@ export default async function SettingsPage() {
 
       <div className="flex flex-col gap-4">
         <AccountPanel email={user.email} name={user.name} index={0} />
-        <CalendarFeed feedUrl={`${origin}/api/calendar/${calendarToken}.ics`} index={1} />
-        <ShareControl shareUrl={`${origin}/s/${shareToken}`} enabled={shareEnabled} index={2} />
-        <AgentAccess apiBase={`${origin}/api/agent`} enabled={agentEnabled} index={3} />
+        <TelegramBot initial={telegram} index={1} />
+        <CalendarFeed feedUrl={`${origin}/api/calendar/${calendarToken}.ics`} index={2} />
+        <ShareControl shareUrl={`${origin}/s/${shareToken}`} enabled={shareEnabled} index={3} />
+        <AgentAccess apiBase={`${origin}/api/agent`} enabled={agentEnabled} index={4} />
       </div>
     </>
   );

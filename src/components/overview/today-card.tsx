@@ -1,6 +1,7 @@
 import { ArrowUpRight, CalendarOff } from "lucide-react";
 import Link from "next/link";
 
+import { SourceBadge } from "@/components/ui/misc";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import type { CalendarEvent, IsoDate } from "@/lib/types";
 import { formatRelativeDay } from "@/lib/utils/date";
@@ -61,7 +62,10 @@ export function TodayCard({ events, today, index }: TodayCardProps) {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-ink">{event.title}</p>
+                  <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-ink">
+                    <span className="truncate">{event.title}</span>
+                    <SourceBadge source={event.source} />
+                  </p>
                   {event.location ? (
                     <p className="truncate text-[11px] text-ink-muted">{event.location}</p>
                   ) : null}

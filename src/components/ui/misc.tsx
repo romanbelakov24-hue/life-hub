@@ -1,7 +1,8 @@
-import type { LucideIcon } from "lucide-react";
+import { Bot, Send, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CountUp, type CountFormat } from "@/components/ui/count-up";
+import type { RecordSource } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 import { withAlpha } from "@/config/palette";
 
@@ -265,5 +266,40 @@ export function Metric({
 
       {caption ? <p className="mt-1.5 text-[12px] text-ink-muted">{caption}</p> : null}
     </div>
+  );
+}
+
+// ─── Откуда запись ───────────────────────────────────────────────────────────
+
+interface SourceBadgeProps {
+  source?: RecordSource;
+  /** На цветной плашке (блок дела в календаре) — белый значок без подложки. */
+  onColor?: boolean;
+  className?: string;
+}
+
+/**
+ * Значок у записей, пришедших не из интерфейса: самолётик — из Telegram-бота,
+ * робот — от личного агента по API. Записи из приложения значка не получают:
+ * их большинство, и метка на каждой была бы шумом.
+ */
+export function SourceBadge({ source, onColor = false, className }: SourceBadgeProps) {
+  if (!source || source === "app") return null;
+  const Icon = source === "telegram" ? Send : Bot;
+  const label = source === "telegram" ? "Записано через Telegram" : "Записано агентом";
+
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="img"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full align-[-2px]",
+        onColor ? "h-3 w-3 text-white/90" : "h-4 w-4 bg-accent-soft text-accent",
+        className,
+      )}
+    >
+      <Icon size={onColor ? 10 : 9} strokeWidth={2.5} />
+    </span>
   );
 }

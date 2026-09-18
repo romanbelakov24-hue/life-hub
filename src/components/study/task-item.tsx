@@ -3,6 +3,7 @@
 import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import { SourceBadge } from "@/components/ui/misc";
 import { IconButton } from "@/components/ui/button";
 import { deleteTask, toggleTaskDone } from "@/lib/actions/study";
 import { isOverdue } from "@/lib/analytics/tasks";
@@ -105,6 +106,9 @@ export function TaskItem({
           )}
         >
           {task.title}
+          {task.source && task.source !== "app" ? (
+            <SourceBadge source={task.source} className="ml-1.5" />
+          ) : null}
         </p>
 
         {task.description && !compact ? (

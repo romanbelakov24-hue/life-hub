@@ -3,7 +3,7 @@ import "server-only";
 import type { Row } from "@libsql/client";
 
 import { db } from "@/lib/db/client";
-import { bool, num, str, strOrNull } from "@/lib/db/rows";
+import { bool, num, recordSource, str, strOrNull } from "@/lib/db/rows";
 import type { IsoDate, Note, Task } from "@/lib/types";
 
 /**
@@ -43,6 +43,7 @@ function mapNote(row: Row): Note {
     subject: str(row, "subject"),
     createdAt: str(row, "created_at"),
     updatedAt: str(row, "updated_at"),
+    source: recordSource(row),
   };
 }
 
@@ -52,14 +53,14 @@ export async function listNotes(userId: string, subject?: string): Promise<Note[
 
   const result = subject
     ? await client.execute({
-        sql: `SELECT id, title, body, date, subject, created_at, updated_at
+        sql: `SELECT id, title, body, date, subject, created_at, updated_at, source
                 FROM notes
                WHERE user_id = ? AND subject = ?
                ORDER BY date DESC, created_at DESC`,
         args: [userId, subject],
       })
     : await client.execute({
-        sql: `SELECT id, title, body, date, subject, created_at, updated_at
+        sql: `SELECT id, title, body, date, subject, created_at, updated_at, source
                 FROM notes
                WHERE user_id = ?
                ORDER BY date DESC, created_at DESC`,
@@ -72,7 +73,7 @@ export async function listNotes(userId: string, subject?: string): Promise<Note[
 export async function listRecentNotes(userId: string, limit = 3): Promise<Note[]> {
   const client = await db();
   const result = await client.execute({
-    sql: `SELECT id, title, body, date, subject, created_at, updated_at
+    sql: `SELECT id, title, body, date, subject, created_at, updated_at, source
             FROM notes
            WHERE user_id = ?
            ORDER BY updated_at DESC
@@ -97,12 +98,13 @@ function mapTask(row: Row): Task {
     subject: str(row, "subject"),
     createdAt: str(row, "created_at"),
     completedAt: strOrNull(row, "completed_at"),
+    source: recordSource(row),
   };
 }
 
 const TASK_SELECT = `
   SELECT id, title, description, due_date, done, urgent, important,
-         subject, created_at, completed_at
+         subject, created_at, completed_at, source
     FROM tasks
 `;
 

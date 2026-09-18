@@ -2,6 +2,7 @@
 
 import { MapPin } from "lucide-react";
 
+import { SourceBadge } from "@/components/ui/misc";
 import { layoutDayEvents } from "@/lib/utils/calendar-layout";
 import type { CalendarEvent, IsoDate } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
@@ -103,6 +104,7 @@ export function TimeGrid({ days, eventsByDate, today, onEventClick, onSlotClick 
                     className="cursor-pointer truncate rounded-[5px] px-1.5 py-0.5 text-left text-[11px] font-medium text-white"
                     style={{ backgroundColor: event.color }}
                   >
+                    <SourceBadge source={event.source} onColor className="mr-1" />
                     {event.title}
                   </button>
                 ))}
@@ -171,7 +173,10 @@ export function TimeGrid({ days, eventsByDate, today, onEventClick, onSlotClick 
                         backgroundColor: event.color,
                       }}
                     >
-                      <p className="truncate text-[11px] font-medium leading-tight">{event.title}</p>
+                      <p className="truncate text-[11px] font-medium leading-tight">
+                        <SourceBadge source={event.source} onColor className="mr-1" />
+                        {event.title}
+                      </p>
                       {height >= 36 ? (
                         <p className="truncate text-[10px] leading-tight opacity-85">
                           {event.startTime}
