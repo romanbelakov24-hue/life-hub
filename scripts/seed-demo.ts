@@ -1,36 +1,20 @@
 /**
  * Демо-данные для проверки интерфейса: `npm run db:seed -- --yes`.
  *
- * Заполняет базу правдоподобными тратами за два месяца, делами в календаре,
- * задачами и заметками. Нужен, чтобы посмотреть, как выглядят графики и
- * списки с реальными объёмами данных, не вводя всё руками.
+ * Заполняет ЛОКАЛЬНЫЙ ./local.db правдоподобными тратами за два месяца, делами
+ * в календаре, задачами и заметками — чтобы посмотреть графики и списки на
+ * реальных объёмах, не вводя всё руками. Строки пишутся без владельца: их
+ * забирает первый зарегистрированный в этой базе.
  *
- * Флаг --yes обязателен: скрипт пишет в ту же базу, что и приложение,
- * и случайный запуск на боевой Turso добавил бы туда мусор.
+ * Боевую базу скрипт не трогает никогда — ни через .env.local, ни через
+ * переменные окружения: демо-данные на проде были бы мусором среди живых.
  */
 
 import { createClient } from "@libsql/client";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
-import { DEFAULT_CATEGORIES, SCHEMA_STATEMENTS, SEED_STATEMENTS } from "../src/lib/db/schema";
-
-function loadEnvFile(fileName: string): void {
-  try {
-    const content = readFileSync(resolve(process.cwd(), fileName), "utf8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const index = trimmed.indexOf("=");
-      if (index === -1) continue;
-      const key = trimmed.slice(0, index).trim();
-      const value = trimmed.slice(index + 1).trim().replace(/^["']|["']$/g, "");
-      if (!process.env[key]) process.env[key] = value;
-    }
-  } catch {
-    // Файла нет — используем переменные окружения как есть.
-  }
-}
+import { migrateDatabase } from "../src/lib/db/migrator";
+import { LEGACY_SEED_STATEMENTS } from "../src/lib/db/legacy-schema";
+import { DEFAULT_CATEGORIES } from "../src/lib/db/schema";
 
 /** Локальный аналог toIso из lib/utils/date (скрипт не тянет alias-пути). */
 function toIso(date: Date): string {
@@ -173,22 +157,17 @@ const SAMPLE_NOTES = [
 async function main(): Promise<void> {
   if (!process.argv.includes("--yes")) {
     console.error(
-      "Скрипт добавит демо-данные в базу приложения.\n" +
+      "Скрипт добавит демо-данные в локальную базу ./local.db.\n" +
         "Если это то, что нужно, запустите: npm run db:seed -- --yes",
     );
     process.exit(1);
   }
 
-  loadEnvFile(".env.local");
-  loadEnvFile(".env");
-
-  const url = process.env.TURSO_DATABASE_URL;
-  const client = url
-    ? createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
-    : createClient({ url: "file:local.db" });
-
-  await client.batch(SCHEMA_STATEMENTS, "write");
-  await client.batch(SEED_STATEMENTS, "write");
+  const client = createClient({ url: "file:local.db" });
+  await migrateDatabase(client);
+  // Категории с фиксированными id (cat_groceries и т.д.) — на них ссылаются
+  // демо-траты ниже.
+  await client.batch(LEGACY_SEED_STATEMENTS, "write");
 
   // Лимиты на часть категорий — чтобы блок «Бюджеты по категориям» было на
   // чём посмотреть. Суммы подобраны так, что при случайных тратах ниже одни

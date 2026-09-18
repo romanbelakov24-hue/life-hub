@@ -19,8 +19,11 @@ export const AGENT_API_VERSION = "1.0.0";
 /**
  * Приоритеты KAIROS — из его промпта захвата задачи:
  * P1 — явная срочность или срок в пределах суток, P2 — обычное дело со сроком,
- * P3 — «когда-нибудь». В life hub задачи живут в матрице Эйзенхауэра, так что
- * приоритет раскладывается на два флага и собирается из них обратно без потерь.
+ * P3 — «когда-нибудь». В life hub задачи живут в матрице Эйзенхауэра: четыре
+ * квадранта на три приоритета, так что круг «флаги → P → флаги» НЕ без потерь —
+ * «срочно, но не важно» уходит агенту как P1, а P1 обратно — это «срочно и
+ * важно». Поэтому при обновлении задачи флаги пересчитываются только если
+ * приоритет действительно сменился (applyPriority).
  */
 export type Priority = "P1" | "P2" | "P3";
 
@@ -39,6 +42,21 @@ export function flagsToPriority(urgent: boolean, important: boolean): Priority {
   if (urgent) return "P1";
   if (important) return "P2";
   return "P3";
+}
+
+type PriorityFlags = { urgent: boolean; important: boolean };
+
+/**
+ * Флаги задачи после того, как агент прислал приоритет. Если это тот же
+ * приоритет, что задача уже отдаёт наружу, — флаги не трогаем: агент часто
+ * отправляет прочитанное обратно, и задача не должна переезжать между
+ * квадрантами из-за того, что у приоритета меньше значений, чем у матрицы.
+ */
+export function applyPriority(current: PriorityFlags, priority: Priority | undefined): PriorityFlags {
+  if (priority === undefined || flagsToPriority(current.urgent, current.important) === priority) {
+    return { urgent: current.urgent, important: current.important };
+  }
+  return priorityToFlags(priority);
 }
 
 // ─── Сериализация ────────────────────────────────────────────────────────────

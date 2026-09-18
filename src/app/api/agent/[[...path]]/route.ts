@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   AGENT_API_VERSION,
+  applyPriority,
   isPriority,
   priorityToFlags,
   serializeEvent,
@@ -194,9 +195,7 @@ async function updateTaskHandler(userId: string, id: string, request: Request): 
     throw new BadRequest("Поле «done» должно быть true или false.");
   }
 
-  const flags = isPriority(body.priority)
-    ? priorityToFlags(body.priority)
-    : { urgent: current.urgent, important: current.important };
+  const flags = applyPriority(current, isPriority(body.priority) ? body.priority : undefined);
 
   const next: TaskInput = {
     title: optionalString(body, "title") ?? current.title,

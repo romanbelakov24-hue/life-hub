@@ -1,117 +1,77 @@
 /**
- * Ручная миграция базы: `npm run db:migrate`.
+ * Миграции базы.
  *
- * Приложение создаёт схему само при первом запросе, поэтому скрипт нужен
- * в двух случаях:
- *   • подготовить свежую базу Turso до первого деплоя;
- *   • применить ALTER_STATEMENTS / POST_ALTER_STATEMENTS после изменения схемы.
+ *   npm run db:migrate          — локальный ./local.db (dev-сервер делает это и сам)
+ *   npm run db:migrate:prod     — боевая Turso
+ *   npm run db:status:prod      — только показать, что не применено; код выхода 1,
+ *                                 если есть неприменённые (так cf:deploy не даёт
+ *                                 выкатить код раньше схемы)
  *
- * Запускается через tsx с загрузкой .env.local, чтобы видеть те же переменные,
- * что и Next.js.
- *
- * ⚠️ POST_ALTER_STATEMENTS (многопользовательский режим) ломает старый код —
- * см. предупреждение в db/schema.ts. Запускать этот скрипт на проде можно
- * только вместе с деплоем новой версии приложения, не раньше и не позже.
+ * Ключи боевой базы берутся из .env.prod.local — этот файл не читают ни Next.js,
+ * ни сборка под Cloudflare, так что ключи не попадают ни в dev-сервер, ни в код
+ * воркера. Пока ключи ещё лежат в .env.local (как было до 18.09.2026), --prod
+ * берёт их оттуда.
  */
 
-import { createClient } from "@libsql/client";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { createClient, type Client } from "@libsql/client";
 
-import {
-  ALTER_STATEMENTS,
-  POST_ALTER_STATEMENTS,
-  SCHEMA_STATEMENTS,
-  SEED_STATEMENTS,
-} from "../src/lib/db/schema";
+import { migrateDatabase, readMigrationStatus } from "../src/lib/db/migrator";
+import { LATEST_SCHEMA_VERSION } from "../src/lib/db/schema";
+import { loadEnvFile } from "./lib/env";
 
-/** Минимальный парсер .env — чтобы не тянуть зависимость ради одного скрипта. */
-function loadEnvFile(fileName: string): void {
-  try {
-    const content = readFileSync(resolve(process.cwd(), fileName), "utf8");
+const args = new Set(process.argv.slice(2));
+const PROD = args.has("--prod");
+const CHECK_ONLY = args.has("--check");
 
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-
-      const separatorIndex = trimmed.indexOf("=");
-      if (separatorIndex === -1) continue;
-
-      const key = trimmed.slice(0, separatorIndex).trim();
-      const value = trimmed.slice(separatorIndex + 1).trim().replace(/^["']|["']$/g, "");
-
-      if (!process.env[key]) process.env[key] = value;
-    }
-  } catch {
-    // Файла нет — работаем с тем, что уже есть в окружении.
+function openClient(): { client: Client; label: string } {
+  if (!PROD) {
+    return { client: createClient({ url: "file:local.db" }), label: "локальный файл ./local.db" };
   }
+
+  loadEnvFile(".env.prod.local");
+  loadEnvFile(".env.local");
+  const url = process.env.TURSO_DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      "Для --prod нужен TURSO_DATABASE_URL (и TURSO_AUTH_TOKEN) в .env.prod.local.",
+    );
+  }
+  return {
+    client: createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN }),
+    label: `боевая база ${new URL(url).host}`,
+  };
 }
 
 async function main(): Promise<void> {
-  loadEnvFile(".env.local");
-  loadEnvFile(".env");
+  const { client, label } = openClient();
+  console.log(`База: ${label}`);
 
-  const url = process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-
-  const client = url
-    ? createClient({ url, authToken })
-    : createClient({ url: "file:local.db" });
-
-  console.log(url ? `База: ${url}` : "База: локальный файл ./local.db");
-
-  await client.batch(SCHEMA_STATEMENTS, "write");
-  console.log(`Таблицы и индексы: ${SCHEMA_STATEMENTS.length} операций.`);
-
-  // ALTER выполняем по одному: повторный запуск ожидаемо падает на уже
-  // добавленной колонке, и это не ошибка миграции.
-  let appliedAlters = 0;
-  for (const statement of ALTER_STATEMENTS) {
-    try {
-      await client.execute(statement);
-      appliedAlters += 1;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes("duplicate column name")) throw error;
+  if (CHECK_ONLY) {
+    const status = await readMigrationStatus(client);
+    if (status.unknown.length > 0) {
+      console.error(`В базе есть миграции новее кода: ${status.unknown.join(", ")}.`);
+      process.exit(1);
     }
-  }
-  if (ALTER_STATEMENTS.length > 0) {
-    console.log(`Новых колонок добавлено: ${appliedAlters}.`);
-  }
-
-  // Индексы и пересборки таблиц, которым нужны только что добавленные колонки.
-  //
-  // Через client.migrate(), а не client.batch(): часть этих операций пересоздаёт
-  // categories, на которую ссылается внешний ключ expenses.category_id — обычный
-  // batch() выполняет свои операторы внутри одной транзакции, а SQLite проверяет
-  // внешние ключи и внутри неё, так что DROP TABLE упал бы с
-  // SQLITE_CONSTRAINT_FOREIGNKEY. migrate() — недокументированный, но реально
-  // существующий метод клиента (используется им самим для той же задачи
-  // внутри пакета): он отключает проверку внешних ключей на время операций и
-  // включает её обратно. Прямо протестировано против локальной и настоящей
-  // Turso-базы перед тем, как полагаться на него здесь.
-  if (POST_ALTER_STATEMENTS.length > 0) {
-    const migratableClient = client as unknown as {
-      migrate: (statements: string[]) => Promise<unknown>;
-    };
-    if (typeof migratableClient.migrate !== "function") {
-      throw new Error(
-        "client.migrate() недоступен в этой версии @libsql/client — " +
-          "POST_ALTER_STATEMENTS пересобирают таблицы со внешними ключами " +
-          "и не могут идти через обычный batch().",
-      );
+    if (status.legacyBaselineNeeded || status.pending.length > 0) {
+      const names = status.pending.map((m) => `${m.version} «${m.name}»`);
+      if (status.legacyBaselineNeeded) names.unshift("перевод на версии");
+      console.error(`Не применено: ${names.join(", ")}.`);
+      console.error(PROD ? "Запусти: npm run db:migrate:prod" : "Запусти: npm run db:migrate");
+      process.exit(1);
     }
-    await migratableClient.migrate(POST_ALTER_STATEMENTS);
-    console.log(`Операций после ALTER: ${POST_ALTER_STATEMENTS.length}.`);
+    console.log(`Схема актуальна: версия ${LATEST_SCHEMA_VERSION}.`);
+    return;
   }
 
-  await client.batch(SEED_STATEMENTS, "write");
-  console.log("Базовые категории на месте.");
-
-  console.log("Миграция завершена.");
+  const result = await migrateDatabase(client, { log: (message) => console.log(message) });
+  if (!result.baselined && result.applied.length === 0) {
+    console.log(`Нечего применять: схема уже на версии ${LATEST_SCHEMA_VERSION}.`);
+  } else {
+    console.log(`Готово: схема на версии ${LATEST_SCHEMA_VERSION}.`);
+  }
 }
 
 main().catch((error) => {
-  console.error("Миграция не выполнена:", error);
+  console.error("Миграция не выполнена:", error instanceof Error ? error.message : error);
   process.exit(1);
 });
